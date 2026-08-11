@@ -1,0 +1,35 @@
+{
+  "name": "resqnet",
+  "version": "1.0.0",
+  "description": "ResQNet: Smart Animal Rescue and Welfare Platform",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix client\" \"npm run dev --prefix server\"",
+    "install-all": "npm install && npm install --prefix client && npm install --prefix server",
+    "client": "npm run dev --prefix client",
+    "server": "npm run dev --prefix server"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dennisjacob03/ResQNet.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/dennisjacob03/ResQNet/issues"
+  },
+  "homepage": "https://github.com/dennisjacob03/ResQNet#readme",
+  "dependencies": {
+    "firebase": "^12.17.1",
+    "mongodb": "^7.5.0"
+  }
+}
