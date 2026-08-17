@@ -42,4 +42,28 @@ export const getCurrentUser = async () => {
   return response.data;
 };
 
+export const sendOtpApi = async (email, reason = 'forgot_password', fullName = '') => {
+  const response = await authService.post('/send-otp', { email, reason, fullName });
+  return response.data;
+};
+
+export const verifyOtpApi = async (email, otp, reason = 'forgot_password') => {
+  const response = await authService.post('/verify-otp', { email, otp, reason });
+  return response.data;
+};
+
+export const resetPasswordApi = async (email, otp, newPassword) => {
+  const response = await authService.post('/reset-password', { email, otp, newPassword });
+  return response.data;
+};
+
+export const updateProfileApi = async (profileData) => {
+  // If profileData is FormData (includes a file), let axios set multipart headers automatically
+  const isFormData = profileData instanceof FormData;
+  const response = await authService.put('/profile', profileData, {
+    headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : {},
+  });
+  return response.data;
+};
+
 export default authService;

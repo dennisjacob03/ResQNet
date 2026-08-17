@@ -1,25 +1,42 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 
 // Initialize environment variables first
 dotenv.config();
 
 const connectDB = require('./config/db');
 const authRoutes = require('./modules/auth/authRoutes');
+const emailRoutes = require('./modules/email/emailRoutes');
+const locationRoutes = require('./modules/locations/locationRoutes');
+const shelterApplicationRoutes = require('./modules/shelters/shelterApplicationRoutes');
+const userRoutes = require('./modules/users/userRoutes');
+const notificationRoutes = require('./modules/notifications/notificationRoutes');
+const { verifyTransporter } = require('./utils/emailService');
 
 const app = express();
 
-// Connect Database
+// Connect Database & Verify Email Transporter
 connectDB();
+verifyTransporter();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve uploaded profile pictures statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/email', emailRoutes);
+app.use('/api/locations', locationRoutes);
+app.use('/api/shelters', shelterApplicationRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

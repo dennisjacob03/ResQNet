@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import UserProfileDropdown from '../../components/common/UserProfileDropdown';
 import {
   LayoutDashboard,
   AlertTriangle,
@@ -26,12 +27,13 @@ import {
 } from 'lucide-react';
 
 const VetDashboard = () => {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('Vet Dashboard');
   const [subTab, setSubTab] = useState('Medical Records');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   // Form state for adding new record
   const [showAddRecordModal, setShowAddRecordModal] = useState(false);
@@ -108,25 +110,22 @@ const VetDashboard = () => {
   const handleAddRecord = (e) => {
     e.preventDefault();
     if (!newPatient.trim() || !newDiagnosis.trim()) return;
-
-    const statusColors = {
-      'Ongoing': 'bg-amber-500/10 text-amber-700 border-amber-200/50',
-      'Critical': 'bg-rose-500/10 text-rose-700 border-rose-200/50',
-      'Improving': 'bg-blue-500/10 text-blue-700 border-blue-200/50',
-      'Completed': 'bg-emerald-500/10 text-emerald-700 border-emerald-200/50'
-    };
-
     const newCase = {
-      id: 'MC-' + Math.floor(305 + Math.random() * 500),
+      id: `MED-${Math.floor(800 + Math.random() * 100)}`,
       patient: newPatient,
       species: newSpecies,
+      breed: 'Mixed Breed',
       diagnosis: newDiagnosis,
       vet: newVet,
-      nextVisit: newNextVisit || '—',
       status: newStatus,
-      statusColor: statusColors[newStatus]
+      nextVisit: newNextVisit || 'Not scheduled',
+      badgeColor:
+        newStatus === 'Critical'
+          ? 'bg-rose-100 text-rose-700 border-rose-200'
+          : newStatus === 'Ongoing'
+          ? 'bg-amber-100 text-amber-700 border-amber-200'
+          : 'bg-emerald-100 text-emerald-700 border-emerald-200',
     };
-
     setMedicalCases([newCase, ...medicalCases]);
     setNewPatient('');
     setNewDiagnosis('');
@@ -159,8 +158,6 @@ const VetDashboard = () => {
           <nav className="p-4 space-y-1.5">
             {[
               { name: 'Vet Dashboard', icon: Stethoscope },
-              { name: 'Notifications', icon: Bell, badge: 1 },
-              { name: 'My Profile', icon: User }
             ].map((item) => {
               const IconComponent = item.icon;
               const isActive = activeTab === item.name;
@@ -178,11 +175,6 @@ const VetDashboard = () => {
                     <IconComponent className={`w-4.5 h-4.5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
                     {sidebarOpen && <span>{item.name}</span>}
                   </div>
-                  {sidebarOpen && item.badge && !isActive && (
-                    <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                      {item.badge}
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -213,25 +205,52 @@ const VetDashboard = () => {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <h2 className="text-lg font-bold text-slate-900">Veterinary Records</h2>
+            <h2 className="text-lg font-bold text-slate-900">
+              {activeTab === 'My Profile' ? 'Doctor Profile' : 'Veterinary Records'}
+            </h2>
           </div>
 
           <div className="flex items-center gap-4.5">
             {/* Notification Bell */}
-            <button className="p-2 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-xl cursor-pointer relative transition-colors">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white"></span>
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setNotifOpen(!notifOpen)}
+                className="p-2 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-xl cursor-pointer relative transition-colors"
+                title="Notifications"
+              >
+                <Bell className="w-5 h-5" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white" />
+              </button>
 
-            {/* Profile Dropdown */}
-            <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-emerald-700 text-white font-extrabold text-sm flex items-center justify-center">
-                V
-              </div>
-              <span className="hidden sm:inline text-sm font-bold text-slate-900">
-                Dr. Priya K.
-              </span>
+              {notifOpen && (
+                <div className="absolute right-0 top-12 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                    <span className="text-sm font-extrabold text-slate-900">Notifications</span>
+                    <button onClick={() => setNotifOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer p-0.5"><X className="w-4 h-4" /></button>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {[
+                      { text: 'Emergency case: Trapped Bird needs wing splint', time: '10 min ago' },
+                      { text: 'Vaccination batch updated for Canine Ward B', time: '1h ago' },
+                      { text: 'New rescue transferred from Team Alpha for checkup', time: '3h ago' },
+                    ].map((n, i) => (
+                      <div key={i} className="p-3.5 hover:bg-slate-50 transition-colors">
+                        <p className="text-xs text-slate-700 font-semibold">{n.text}</p>
+                        <p className="text-[10px] text-slate-400 mt-1">{n.time}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Profile Dropdown / Widget */}
+            <UserProfileDropdown
+              onOpenProfile={() => setActiveTab('My Profile')}
+              unreadCount={1}
+              onOpenNotifications={() => setNotifOpen(!notifOpen)}
+              customRole="Veterinary Staff"
+            />
           </div>
         </header>
 
@@ -440,8 +459,63 @@ const VetDashboard = () => {
             </div>
           )}
 
+          {/* ══ MY PROFILE TAB ══ */}
+          {activeTab === 'My Profile' && (
+            <div className="max-w-3xl space-y-6">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900">Veterinary Profile</h1>
+                <p className="text-slate-500 text-xs sm:text-sm mt-1 font-medium">Manage your clinic credentials and veterinary staff details</p>
+              </div>
+
+              <div className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+                  {user?.profilePic ? (
+                    <img
+                      src={user.profilePic.startsWith('/uploads') ? `http://localhost:5000${user.profilePic}` : user.profilePic}
+                      alt={user?.fullName || 'Doctor'}
+                      className="w-20 h-20 rounded-3xl object-cover border border-slate-200 shadow-md shrink-0"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-3xl bg-cyan-600 text-white font-black text-3xl flex items-center justify-center shadow-md select-none shrink-0">
+                      {(user?.fullName || 'V')[0].toUpperCase()}
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <h2 className="text-xl font-black text-slate-900">{user?.fullName || 'Dr. Priya K.'}</h2>
+                      <span className="px-3 py-1 bg-cyan-50 text-cyan-700 border border-cyan-200/60 rounded-xl text-xs font-bold">
+                        Veterinary Staff
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-500">{user?.email || 'priya.vet@resqnet.org'}</p>
+                    <p className="text-xs text-slate-400 font-medium flex items-center gap-1.5 pt-0.5">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400" /> Bangalore Central Veterinary Clinic & Shelter Ward
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-slate-100">
+                  {[
+                    { label: 'Specialization', value: 'Small Animal Surgery & Trauma Care' },
+                    { label: 'Veterinary Reg. No.', value: 'VCI-KAR-2024-8841' },
+                    { label: 'Phone Contact', value: user?.phoneNumber || '+91 98765 43210' },
+                    { label: 'Clinic Shift', value: '09:00 AM – 06:00 PM' },
+                    { label: 'Assigned Shelter', value: 'Green Valley Facility' },
+                    { label: 'Account Status', value: 'Verified & Active' },
+                  ].map((field) => (
+                    <div key={field.label} className="p-4 bg-[#F8FAF9] rounded-2xl border border-slate-100/80">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">{field.label}</span>
+                      <span className="text-xs sm:text-sm font-extrabold text-slate-800 mt-1 block">{field.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Placeholders for Other Tabs */}
-          {activeTab !== 'Vet Dashboard' && (
+          {activeTab !== 'Vet Dashboard' && activeTab !== 'My Profile' && (
             <div className="max-w-xl mx-auto py-16 text-center space-y-4">
               <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 mx-auto">
                 <Info className="w-8 h-8" />

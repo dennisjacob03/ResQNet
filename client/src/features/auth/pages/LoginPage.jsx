@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import AuthLayout from '../components/AuthLayout';
 import { AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
@@ -7,7 +7,9 @@ import { loginSchema, validateField } from '../../../utils/validationSchemas';
 
 const LoginPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, googleLogin } = useAuth();
+  const redirectParam = new URLSearchParams(location.search).get('redirect');
 
   const [formData, setFormData] = useState({
     email: '',
@@ -66,7 +68,13 @@ const LoginPage = () => {
     try {
       const result = await login(formData.email.trim(), formData.password);
       if (result.success) {
-        navigate('/dashboard');
+        if (redirectParam === 'report') {
+          navigate('/dashboard?tab=report');
+        } else if (redirectParam === 'adopt') {
+          navigate('/dashboard?tab=adopt');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         setErrorMessage(result.message || 'Login failed. Please check your credentials.');
       }
@@ -83,7 +91,13 @@ const LoginPage = () => {
     try {
       const result = await googleLogin();
       if (result.success) {
-        navigate('/dashboard');
+        if (redirectParam === 'report') {
+          navigate('/dashboard?tab=report');
+        } else if (redirectParam === 'adopt') {
+          navigate('/dashboard?tab=adopt');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         setErrorMessage(result.message || 'Google Sign-in failed');
       }
@@ -153,6 +167,12 @@ const LoginPage = () => {
             <label className="block text-sm font-semibold text-slate-700">
               Password
             </label>
+            <Link
+              to="/forgot-password"
+              className="text-xs font-semibold text-[#237737] hover:text-[#1d632e] hover:underline transition cursor-pointer"
+            >
+              Forgot password?
+            </Link>
           </div>
           <div className="relative">
             <input

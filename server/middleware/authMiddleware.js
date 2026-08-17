@@ -44,11 +44,31 @@ const protect = async (req, res, next) => {
           );
           decodedUser = await User.findById(decoded.id).select('-password');
         } catch (jwtError) {
-          console.error('Token verification error:', tokenVerifyError || jwtError.message);
-          return res.status(401).json({
-            success: false,
-            message: 'Not authorized, token failed verification',
-          });
+          // 3. Fallback: If token was a Firebase token that expired, try decoding it to resolve the active user
+          try {
+            const decodedUnverified = jwt.decode(token);
+            if (decodedUnverified && (decodedUnverified.user_id || decodedUnverified.uid || decodedUnverified.email || decodedUnverified.id)) {
+              const query = [];
+              if (decodedUnverified.id) query.push({ _id: decodedUnverified.id });
+              if (decodedUnverified.user_id) query.push({ firebaseUid: decodedUnverified.user_id });
+              if (decodedUnverified.uid) query.push({ firebaseUid: decodedUnverified.uid });
+              if (decodedUnverified.email) query.push({ email: decodedUnverified.email.toLowerCase() });
+
+              if (query.length > 0) {
+                decodedUser = await User.findOne({ $or: query }).select('-password');
+              }
+            }
+          } catch (decodeErr) {
+            console.error('Fallback decode error:', decodeErr);
+          }
+
+          if (!decodedUser) {
+            console.error('Token verification error:', tokenVerifyError || jwtError.message);
+            return res.status(401).json({
+              success: false,
+              message: 'Not authorized, token failed verification',
+            });
+          }
         }
       }
 

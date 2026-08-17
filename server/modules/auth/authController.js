@@ -3,6 +3,8 @@ const LoginLog = require('../users/loginModel');
 const admin = require('../../config/firebase');
 const { getAuth } = require('firebase-admin/auth');
 const generateToken = require('../../utils/generateToken');
+const { sendPasswordResetEmail, sendVerificationEmail, sendWelcomeEmail } = require('../../utils/emailService');
+const { createNotificationHelper } = require('../notifications/notificationController');
 
 // Helper to log user session
 const logUserSession = async (req, userId) => {
@@ -41,6 +43,7 @@ const registerUser = async (req, res) => {
       state = '',
       pincode = '',
       dob,
+      otp,
     } = req.body;
 
     // Validate required fields
@@ -81,6 +84,35 @@ const registerUser = async (req, res) => {
       });
     }
 
+    // Enforce Dual Verification (Both Phone & Email must be verified)
+    if (!req.body.isPhoneVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number verification is required before registration',
+      });
+    }
+
+    if (!otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email verification OTP code is required for registration',
+      });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const key = `${cleanEmail}_email_verification`;
+    const storedRecord = otpStore.get(key);
+
+    if (!storedRecord || storedRecord.code !== otp.trim() || Date.now() > storedRecord.expiresAt) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired email verification OTP. Please check your email and try again.',
+      });
+    }
+
+    // Clear email OTP after successful verification
+    otpStore.delete(key);
+
     // 1. Create User in Firebase Auth (with fallback to local MongoDB-only registration)
     let firebaseUser;
     try {
@@ -114,7 +146,7 @@ const registerUser = async (req, res) => {
       }
     }
 
-    // 2. Create User Profile in MongoDB
+    // 2. Create User Profile in MongoDB with both verification flags set to true
     const user = await User.create({
       fullName,
       email: email.toLowerCase(),
@@ -129,9 +161,23 @@ const registerUser = async (req, res) => {
       dob: dob ? new Date(dob) : null,
       status: 'Active',
       firebaseUid: firebaseUser.uid,
+      isEmailVerified: true,
+      isPhoneVerified: true,
     });
 
     if (user) {
+      // Send welcome email asynchronously
+      sendWelcomeEmail(user).catch((err) => console.error('Failed to send welcome email:', err));
+      
+      // Dispatch Welcome in-app notification
+      createNotificationHelper({
+        userId: user._id,
+        title: 'Welcome to ResQNet! 🐾',
+        message: `Greetings ${user.fullName}! Welcome to ResQNet. We are delighted to have you join our animal welfare and rescue network. You can report emergencies, adopt pets, and register shelters.`,
+        type: 'Welcome',
+        priority: 'Medium',
+      }).catch((err) => console.error('Failed to create welcome notification:', err));
+
       // Log login session
       await logUserSession(req, user._id);
 
@@ -239,6 +285,13 @@ const loginUser = async (req, res) => {
           });
         }
 
+        if (user.isDeleted || user.status === 'Deleted') {
+          return res.status(403).json({
+            success: false,
+            message: 'Your account has been deactivated. Please contact support.',
+          });
+        }
+
         if (user.status === 'Suspended') {
           return res.status(403).json({
             success: false,
@@ -248,11 +301,12 @@ const loginUser = async (req, res) => {
 
         // Log login session
         await logUserSession(req, user._id);
+        const token = generateToken(user);
 
         return res.status(200).json({
           success: true,
           message: 'Logged in successfully',
-          token: idToken,
+          token,
           user,
         });
       } catch (tokenError) {
@@ -280,6 +334,12 @@ const loginUser = async (req, res) => {
       if (user && user.password) {
         const isMatch = await user.matchPassword(password);
         if (isMatch) {
+          if (user.isDeleted || user.status === 'Deleted') {
+            return res.status(403).json({
+              success: false,
+              message: 'Your account has been deactivated. Please contact support.',
+            });
+          }
           if (user.status === 'Suspended') {
             return res.status(403).json({
               success: false,
@@ -327,6 +387,12 @@ const loginUser = async (req, res) => {
         if (user && user.password) {
           const isMatch = await user.matchPassword(password);
           if (isMatch) {
+            if (user.isDeleted || user.status === 'Deleted') {
+              return res.status(403).json({
+                success: false,
+                message: 'Your account has been deactivated. Please contact support.',
+              });
+            }
             if (user.status === 'Suspended') {
               return res.status(403).json({
                 success: false,
@@ -360,6 +426,12 @@ const loginUser = async (req, res) => {
       if (user && user.password) {
         const isMatch = await user.matchPassword(password);
         if (isMatch) {
+          if (user.isDeleted || user.status === 'Deleted') {
+            return res.status(403).json({
+              success: false,
+              message: 'Your account has been deactivated. Please contact support.',
+            });
+          }
           if (user.status === 'Suspended') {
             return res.status(403).json({
               success: false,
@@ -400,6 +472,13 @@ const loginUser = async (req, res) => {
       });
     }
 
+    if (user.isDeleted || user.status === 'Deleted') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact support.',
+      });
+    }
+
     if (user.status === 'Suspended') {
       return res.status(403).json({
         success: false,
@@ -409,11 +488,12 @@ const loginUser = async (req, res) => {
 
     // Log login session
     await logUserSession(req, user._id);
+    const token = generateToken(user);
 
     return res.status(200).json({
       success: true,
       message: 'Logged in successfully',
-      token: returnedIdToken,
+      token,
       user: {
         _id: user._id,
         fullName: user.fullName,
@@ -529,6 +609,15 @@ const googleAuth = async (req, res) => {
         status: 'Active',
         firebaseUid,
       });
+
+      // Dispatch Welcome in-app notification for new Google user
+      createNotificationHelper({
+        userId: user._id,
+        title: 'Welcome to ResQNet! 🐾',
+        message: `Greetings ${user.fullName}! Welcome to ResQNet. We are delighted to have you join our animal welfare and rescue network. You can report emergencies, adopt pets, and register shelters.`,
+        type: 'Welcome',
+        priority: 'Medium',
+      }).catch((err) => console.error('Failed to create welcome notification:', err));
     } else {
       // User exists, check status
       if (user.status === 'Suspended') {
@@ -574,9 +663,235 @@ const googleAuth = async (req, res) => {
   }
 };
 
+// OTP Memory Cache Store
+const otpStore = new Map();
+
+// @desc    Send OTP to user email
+// @route   POST /api/auth/send-otp
+// @access  Public
+const sendOtp = async (req, res) => {
+  try {
+    const { email, reason = 'forgot_password' } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email address is required' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: cleanEmail });
+
+    if (!user && reason === 'forgot_password') {
+      return res.status(404).json({ success: false, message: 'No account registered with this email address' });
+    }
+
+    if (user && reason === 'email_verification') {
+      return res.status(400).json({ success: false, message: 'An account with this email address already exists' });
+    }
+
+    // Generate 6-digit OTP code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const key = `${cleanEmail}_${reason}`;
+    
+    // Expire in 10 minutes (600,000 ms)
+    otpStore.set(key, { code: otpCode, expiresAt: Date.now() + 600000 });
+
+    // Trigger Email Dispatch
+    if (reason === 'email_verification' || reason === 'shelter_email_verification') {
+      await sendVerificationEmail(cleanEmail, otpCode, req.body.fullName || req.body.shelterName || 'Shelter Partner');
+    } else {
+      await sendPasswordResetEmail(user || { email: cleanEmail, fullName: 'Valued User' }, otpCode);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `A 6-digit verification code has been sent to ${cleanEmail}`,
+    });
+  } catch (error) {
+    console.error('Send OTP Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to send OTP code' });
+  }
+};
+
+// @desc    Verify OTP code
+// @route   POST /api/auth/verify-otp
+// @access  Public
+const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp, reason = 'forgot_password' } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: 'Email address and OTP code are required' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const key = `${cleanEmail}_${reason}`;
+    const storedRecord = otpStore.get(key);
+
+    if (!storedRecord) {
+      return res.status(400).json({ success: false, message: 'No OTP request found for this email address. Please request a new code.' });
+    }
+
+    if (Date.now() > storedRecord.expiresAt) {
+      otpStore.delete(key);
+      return res.status(400).json({ success: false, message: 'Verification OTP has expired. Please request a new code.' });
+    }
+
+    if (storedRecord.code !== otp.trim()) {
+      return res.status(400).json({ success: false, message: 'Invalid verification OTP code. Please check and try again.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP code verified successfully',
+    });
+  } catch (error) {
+    console.error('Verify OTP Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to verify OTP code' });
+  }
+};
+
+// @desc    Reset user password
+// @route   POST /api/auth/reset-password
+// @access  Public
+const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword, reason = 'forgot_password' } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Email, OTP code, and new password are required' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const key = `${cleanEmail}_${reason}`;
+    const storedRecord = otpStore.get(key);
+
+    if (!storedRecord || storedRecord.code !== otp.trim() || Date.now() > storedRecord.expiresAt) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP session. Please request a new code.' });
+    }
+
+    const user = await User.findOne({ email: cleanEmail });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User account not found' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    // Clear OTP after successful reset
+    otpStore.delete(key);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Your password has been reset successfully. You can now log in.',
+    });
+  } catch (error) {
+    console.error('Reset Password Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to reset password' });
+  }
+};
+
+const updateProfile = async (req, res) => {
+  try {
+    const { fullName, phoneNumber, dob, address, city, district, state, pincode, isPhoneVerified } = req.body;
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User authorization token required' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User account not found' });
+    }
+
+    // Phone number is MANDATORY
+    if (!phoneNumber || !phoneNumber.trim()) {
+      return res.status(400).json({ success: false, message: 'Phone number is mandatory and cannot be empty' });
+    }
+
+    const cleanPhone = phoneNumber.trim();
+
+    // If phone number is changed or was not verified, require phone verification
+    if (cleanPhone !== user.phoneNumber && !isPhoneVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number verification (OTP) is required when updating phone number.',
+      });
+    }
+
+    if (fullName) user.fullName = fullName.trim();
+    user.phoneNumber = cleanPhone;
+    if (dob !== undefined && dob !== '') user.dob = new Date(dob);
+    if (address !== undefined) user.address = address;
+    if (city !== undefined) user.city = city;
+    if (district !== undefined) user.district = district;
+    if (state !== undefined) user.state = state;
+    if (pincode !== undefined) user.pincode = pincode;
+    if (isPhoneVerified) user.isPhoneVerified = true;
+
+    // If a profile picture file was uploaded via multer
+    if (req.file) {
+      // Store as /uploads/<filename> path accessible via static serving
+      user.profilePic = `/uploads/${req.file.filename}`;
+    }
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      user,
+    });
+  } catch (error) {
+    console.error('Update Profile Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to update profile' });
+  }
+};
+
+// @desc    Change logged-in user's password
+// @route   POST /api/auth/change-password
+// @access  Private
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required.' });
+    }
+
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    // Google/Firebase-only accounts may have no password set
+    if (!user.password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Your account uses Google sign-in and does not have a password. Please use "Forgot Password" to set one.',
+      });
+    }
+
+    const isMatch = await user.matchPassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+    }
+
+    user.password = newPassword;
+    await user.save(); // pre-save hook will hash the new password
+
+    return res.status(200).json({ success: true, message: 'Password changed successfully.' });
+  } catch (error) {
+    console.error('Change Password Error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Failed to change password.' });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   googleAuth,
   getMe,
+  sendOtp,
+  verifyOtp,
+  resetPassword,
+  updateProfile,
+  changePassword,
 };

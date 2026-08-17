@@ -1,13 +1,16 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import LandingPage from './features/landing/LandingPage';
 import LoginPage from './features/auth/pages/LoginPage';
 import RegisterPage from './features/auth/pages/RegisterPage';
+import ForgotPasswordPage from './features/auth/pages/ForgotPasswordPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import UserDashboard from './features/user-dashboard/UserDashboard';
 import AdminDashboard from './features/admin/AdminDashboard';
 import ShelterDashboard from './features/shelter/ShelterDashboard';
 import VetDashboard from './features/veterinary/VetDashboard';
+import RescueTeamDashboard from './features/rescue-team/RescueTeamDashboard';
 import { Heart, LogOut, Shield, User, Building2, Stethoscope, UserCheck, AlertTriangle } from 'lucide-react';
 
 // Sample Dashboard component customized by User Role
@@ -207,6 +210,9 @@ const DashboardGateway = () => {
   if (user?.role === 'Veterinary Staff') {
     return <VetDashboard />;
   }
+  if (user?.role === 'Rescue Team') {
+    return <RescueTeamDashboard />;
+  }
   return <UserDashboard />;
 };
 
@@ -215,9 +221,10 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route
             path="/dashboard"
             element={

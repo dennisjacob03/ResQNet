@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect, useContext } from 'react';
-import { loginUser, registerUser, getCurrentUser } from '../services/authService';
-import { auth, googleProvider, signInWithPopup } from '../config/firebase';
+import { loginUser, registerUser, getCurrentUser, sendOtpApi, verifyOtpApi, resetPasswordApi, updateProfileApi } from '../services/authService';
+import { auth, googleProvider, signInWithPopup, RecaptchaVerifier, signInWithPhoneNumber } from '../config/firebase';
 
 const AuthContext = createContext(null);
 
@@ -120,6 +120,134 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('resqnet_user');
   };
 
+  const sendOtp = async (email, reason = 'forgot_password', fullName = '') => {
+    try {
+      const data = await sendOtpApi(email, reason, fullName);
+      return data;
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Failed to send OTP';
+      return { success: false, message: msg };
+    }
+  };
+
+  const verifyOtp = async (email, otp, reason = 'forgot_password') => {
+    try {
+      const data = await verifyOtpApi(email, otp, reason);
+      return data;
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Invalid or expired OTP';
+      return { success: false, message: msg };
+    }
+  };
+
+  const resetPassword = async (email, otp, newPassword) => {
+    try {
+      const data = await resetPasswordApi(email, otp, newPassword);
+      return data;
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Failed to reset password';
+      return { success: false, message: msg };
+    }
+  };
+
+  // Firebase Phone Authentication Helpers
+  const setupRecaptcha = (containerId = 'recaptcha-container') => {
+    const element = document.getElementById(containerId);
+    if (!element) {
+      console.warn(`Container #${containerId} not found in DOM`);
+      return null;
+    }
+    if (window.recaptchaVerifier) {
+      try {
+        window.recaptchaVerifier.clear();
+      } catch (e) {
+        console.warn('Failed to clear previous recaptchaVerifier:', e);
+      }
+      window.recaptchaVerifier = null;
+    }
+
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
+      size: 'invisible',
+      callback: () => {
+        // reCAPTCHA solved
+      },
+      'expired-callback': () => {
+        console.warn('reCAPTCHA expired');
+      }
+    });
+
+    return window.recaptchaVerifier;
+  };
+
+  const sendPhoneOtp = async (phoneNumber, appVerifier) => {
+    try {
+      if (!appVerifier) {
+        return {
+          success: false,
+          message: 'reCAPTCHA verifier could not be initialized on page.'
+        };
+      }
+      let formattedPhone = phoneNumber.trim();
+      if (!formattedPhone.startsWith('+')) {
+        formattedPhone = `+91${formattedPhone}`;
+      }
+      const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+      return { success: true, confirmationResult };
+    } catch (err) {
+      console.error('Firebase Phone Auth sendOtp error:', err);
+      let userFriendlyMsg = err.message || 'Failed to send phone verification OTP';
+      if (err.message?.includes('region') || err.message?.includes('SMS unable to be sent')) {
+        userFriendlyMsg = 'SMS region for India (+91) is not enabled in Firebase Console. Go to Authentication > Settings > SMS Region Policy and enable India (+91).';
+      } else if (err.code === 'auth/operation-not-allowed') {
+        userFriendlyMsg = 'Phone sign-in is not enabled in your Firebase Console. Please enable Phone under Authentication > Sign-in method.';
+      } else if (err.code === 'auth/invalid-phone-number') {
+        userFriendlyMsg = 'Invalid phone number. Please enter a valid 10-digit phone number.';
+      }
+      return {
+        success: false,
+        message: userFriendlyMsg,
+        code: err.code
+      };
+    }
+  };
+
+  const verifyPhoneOtp = async (confirmationResult, otpCode) => {
+    try {
+      const result = await confirmationResult.confirm(otpCode);
+      return { success: true, user: result.user };
+    } catch (err) {
+      console.error('Firebase Phone Auth verifyOtp error:', err);
+      let msg = err.message || 'Invalid verification OTP code';
+      if (err.code === 'auth/invalid-verification-code') {
+        msg = 'Invalid OTP code. Please check your 6-digit verification code and try again.';
+      } else if (err.code === 'auth/code-expired') {
+        msg = 'Verification OTP code has expired. Please request a new code.';
+      }
+      return {
+        success: false,
+        message: msg,
+        code: err.code
+      };
+    }
+  };
+
+  const updateProfile = async (profileData) => {
+    setError(null);
+    try {
+      const data = await updateProfileApi(profileData);
+      if (data.success && data.user) {
+        setUser(data.user);
+        localStorage.setItem('resqnet_user', JSON.stringify(data.user));
+        return { success: true, user: data.user };
+      }
+      return { success: false, message: data.message || 'Profile update failed' };
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Profile update error occurred';
+      setError(msg);
+      return { success: false, message: msg };
+    }
+  };
+
   const value = {
     user,
     token,
@@ -131,6 +259,13 @@ export const AuthProvider = ({ children }) => {
     register,
     googleLogin,
     logout,
+    sendOtp,
+    verifyOtp,
+    resetPassword,
+    setupRecaptcha,
+    sendPhoneOtp,
+    verifyPhoneOtp,
+    updateProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

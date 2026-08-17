@@ -19,6 +19,14 @@ const userSchema = new mongoose.Schema(
         'Please enter a valid email address',
       ],
     },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    isPhoneVerified: {
+      type: Boolean,
+      default: false,
+    },
     phoneNumber: {
       type: String,
       required: [true, 'Phone number is required'],
@@ -78,8 +86,17 @@ const userSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Active', 'Inactive', 'Suspended'],
+      enum: ['Active', 'Inactive', 'Suspended', 'Deleted'],
       default: 'Active',
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
     },
     firebaseUid: {
       type: String,

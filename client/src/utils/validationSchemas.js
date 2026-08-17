@@ -66,6 +66,54 @@ export const loginSchema = z.object({
   password: z.string().min(1, { message: 'Password is required' }),
 });
 
+// Indian PIN Code: Exactly 6 numeric digits
+export const pincodeSchema = z
+  .string()
+  .min(1, { message: 'PIN code is required' })
+  .refine((val) => val.trim().length > 0, { message: 'PIN code cannot be empty' })
+  .refine((val) => /^[0-9]+$/.test(val), { message: 'PIN code must contain numbers only' })
+  .refine((val) => val.length === 6, { message: 'PIN code must be exactly 6 digits' });
+
+// State: Required string
+export const stateSchema = z
+  .string()
+  .min(1, { message: 'State is required' })
+  .refine((val) => val.trim().length > 0, { message: 'Please select a state' });
+
+// District: Required string
+export const districtSchema = z
+  .string()
+  .min(1, { message: 'District is required' })
+  .refine((val) => val.trim().length > 0, { message: 'Please select a district' });
+
+// City / Locality: Required string
+export const citySchema = z
+  .string()
+  .min(1, { message: 'City / Locality is required' })
+  .refine((val) => val.trim().length > 0, { message: 'Please select or enter a city / locality' });
+
+// Address line: Optional or required string
+export const addressLineSchema = z
+  .string()
+  .min(1, { message: 'Street address is required' })
+  .refine((val) => val.trim().length >= 3, { message: 'Address must be at least 3 characters' });
+
+// Date of Birth: Must be past date
+export const dobSchema = z
+  .string()
+  .refine((val) => !val || new Date(val) <= new Date(), {
+    message: 'Date of birth cannot be in the future',
+  });
+
+// Comprehensive Address Schema
+export const addressSchema = z.object({
+  address: z.string().optional(),
+  state: stateSchema,
+  district: districtSchema,
+  city: citySchema,
+  pincode: pincodeSchema,
+});
+
 // Single field validator helper function for live instant field validation
 export const validateField = (schema, fieldName, value, allData = {}) => {
   if (fieldName === 'confirmPassword') {
@@ -81,7 +129,14 @@ export const validateField = (schema, fieldName, value, allData = {}) => {
     fullName: fullNameSchema,
     email: emailSchema,
     phoneNumber: phoneSchema,
+    phone: phoneSchema,
     password: passwordSchema,
+    pincode: pincodeSchema,
+    state: stateSchema,
+    district: districtSchema,
+    city: citySchema,
+    address: addressLineSchema,
+    dob: dobSchema,
   };
 
   const targetSchema = fieldSchemas[fieldName] || schema;
@@ -93,3 +148,4 @@ export const validateField = (schema, fieldName, value, allData = {}) => {
   }
   return '';
 };
+

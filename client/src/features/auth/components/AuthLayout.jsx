@@ -6,6 +6,7 @@ const AuthLayout = ({ children, title, subtitle }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const isLogin = location.pathname === '/login' || location.pathname === '/';
+  const redirectParam = new URLSearchParams(location.search).get('redirect');
 
   return (
     <div className="h-screen w-full flex items-center justify-center font-sans">
@@ -70,7 +71,7 @@ const AuthLayout = ({ children, title, subtitle }) => {
             <div className="bg-slate-200/70 p-1 rounded-xl inline-flex items-center gap-1 border border-slate-300/60">
               <button
                 type="button"
-                onClick={() => navigate('/login')}
+                onClick={() => navigate(redirectParam ? `/login?redirect=${redirectParam}` : '/login')}
                 className={`px-4 py-1 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${
                   isLogin
                     ? 'bg-white text-slate-900 shadow-sm'
@@ -81,7 +82,7 @@ const AuthLayout = ({ children, title, subtitle }) => {
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/register')}
+                onClick={() => navigate(redirectParam ? `/register?redirect=${redirectParam}` : '/register')}
                 className={`px-4 py-1 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer ${
                   !isLogin
                     ? 'bg-white text-slate-900 shadow-sm'
