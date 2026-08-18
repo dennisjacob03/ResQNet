@@ -37,6 +37,9 @@ import {
   ArrowRight,
   RefreshCw,
   ClipboardList,
+  Eye,
+  Calendar,
+  FileText,
 } from 'lucide-react';
 import AddressForm from '../../components/address/AddressForm';
 import UserProfileDropdown from '../../components/common/UserProfileDropdown';
@@ -471,6 +474,8 @@ const UserDashboard = () => {
   // Shelter UI view mode ('form' | 'history') and list of all submitted applications
   const [shelterViewTab, setShelterViewTab] = useState('form');
   const [shelterApplicationsList, setShelterApplicationsList] = useState([]);
+  const [selectedUserAppForModal, setSelectedUserAppForModal] = useState(null);
+  const [showUserAppDetailsModal, setShowUserAppDetailsModal] = useState(false);
 
   // Fetch user's existing applications whenever they open the tab
   const handleOpenShelterTab = async () => {
@@ -1177,27 +1182,139 @@ const UserDashboard = () => {
   ];
 
   return (
-    <div className="flex h-screen w-full bg-[#F8FAF9] font-sans overflow-hidden text-slate-800">
+    <div className="flex flex-col h-screen w-full bg-[#F8FAF9] font-sans overflow-hidden text-slate-800">
       
-      {/* Sidebar Panel */}
-      <aside 
-        className={`${
-          sidebarOpen ? 'w-64' : 'w-0 lg:w-20'
-        } transition-all duration-300 bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-hidden shrink-0`}
-      >
-        <div>
-          {/* Brand Header */}
-          <div className="h-16 px-5 border-b border-slate-100 flex items-center gap-3">
-            {sidebarOpen ? (
-              <img src="/logo.png" alt="ResQNet Logo" className="h-9 w-auto object-contain select-none" />
-            ) : (
-              <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-start select-none">
-                <img src="/logo.png" alt="ResQNet Logo" className="h-9 min-w-[130px] max-w-none object-cover object-left" />
+      {/* Full-width Top Navbar */}
+      <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-8 flex-shrink-0 z-30 w-full">
+        {/* Brand Logo */}
+        <div className="flex items-center gap-2 select-none shrink-0">
+          <img src="/logo.png" alt="ResQNet Logo" className="h-9 w-auto object-contain" />
+        </div>
+
+        {/* Center: Search Bar */}
+        <div className="flex-1 flex justify-center px-4 max-w-xl mx-auto">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search pets, shelters, reports..."
+              className="w-full pl-10 pr-4 py-2 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:border-[#237737] focus:bg-white transition text-slate-800 placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4.5 shrink-0">
+          {/* Notification Bell */}
+          <div className="relative">
+            <button 
+              onClick={() => setNotifDropdownOpen(!notifDropdownOpen)}
+              className="p-2 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-xl cursor-pointer relative transition-colors"
+              title="Notifications"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white"></span>
+              )}
+            </button>
+
+            {/* Notification Popover Dropdown */}
+            {notifDropdownOpen && (
+              <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-extrabold text-slate-900">Notifications</span>
+                    {unreadCount > 0 && (
+                      <span className="bg-orange-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-[11px] font-bold text-[#237737] hover:underline cursor-pointer"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setNotifDropdownOpen(false)}
+                      className="text-slate-400 hover:text-slate-700 cursor-pointer p-0.5"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
+                  {notifications.slice(0, 5).map((n) => {
+                    const iconInfo = getNotificationIconInfo(n);
+                    const Icon = iconInfo.icon;
+                    const notifId = n._id || n.id;
+                    const isUnread = n.status === 'Unread';
+                    return (
+                      <div
+                        key={notifId}
+                        onClick={() => handleToggleRead(notifId)}
+                        className={`p-3.5 hover:bg-slate-50 transition-colors flex items-start gap-3 cursor-pointer ${
+                          isUnread ? 'bg-emerald-50/30' : ''
+                        }`}
+                      >
+                        <div className={`p-2 rounded-xl shrink-0 ${iconInfo.color}`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <p className={`text-xs font-bold truncate ${isUnread ? 'text-slate-900' : 'text-slate-700'}`}>
+                              {n.title || n.message}
+                            </p>
+                            {isUnread && <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />}
+                          </div>
+                          <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{n.message || n.text}</p>
+                          <span className="text-[10px] text-slate-400 font-semibold mt-1 block">
+                            {formatNotificationTime(n.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {notifications.length === 0 && (
+                    <div className="p-8 text-center text-slate-400 text-xs font-semibold">
+                      No notifications yet
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-3 border-t border-slate-100 bg-slate-50/50 text-center">
+                  <button
+                    onClick={() => {
+                      setNotifDropdownOpen(false);
+                      setActiveTab('Notifications');
+                    }}
+                    className="text-xs font-bold text-[#237737] hover:underline cursor-pointer flex items-center justify-center gap-1 w-full"
+                  >
+                    View All Notifications <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Navigation Links */}
+          {/* Profile Dropdown / Widget */}
+          <UserProfileDropdown
+            onOpenProfile={() => setActiveTab('My Profile')}
+            unreadCount={unreadCount}
+            onOpenNotifications={() => setActiveTab('Notifications')}
+          />
+        </div>
+      </header>
+
+      {/* Main Container Below Navbar */}
+      <div className="flex flex-1 overflow-hidden">
+        
+        {/* Sidebar Panel (below navbar) */}
+        <aside className="w-64 bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-y-auto shrink-0">
           <nav className="p-4 space-y-1.5">
             {[
               { name: 'Dashboard', icon: LayoutDashboard },
@@ -1226,9 +1343,9 @@ const UserDashboard = () => {
                 >
                   <div className="flex items-center gap-3">
                     <IconComponent className={`w-4.5 h-4.5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                    {sidebarOpen && <span>{item.name}</span>}
+                    <span>{item.name}</span>
                   </div>
-                  {sidebarOpen && item.badge > 0 && !isActive && (
+                  {item.badge > 0 && !isActive && (
                     <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                       {item.badge}
                     </span>
@@ -1237,143 +1354,18 @@ const UserDashboard = () => {
               );
             })}
           </nav>
-        </div>
 
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-100">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-rose-600 rounded-xl text-sm font-semibold transition cursor-pointer"
-          >
-            <LogOut className="w-4.5 h-4.5 text-slate-500 hover:text-rose-500" />
-            {sidebarOpen && <span>Log Out</span>}
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        
-        {/* Top Navbar */}
-        <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-8 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-lg cursor-pointer transition-colors"
+          {/* Sidebar Footer */}
+          <div className="p-4 border-t border-slate-100">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-rose-600 rounded-xl text-sm font-semibold transition cursor-pointer"
             >
-              <Menu className="w-5 h-5" />
+              <LogOut className="w-4.5 h-4.5 text-slate-500 hover:text-rose-500" />
+              <span>Log Out</span>
             </button>
-            <h2 className="text-lg font-bold text-slate-900">
-              {activeTab === 'Dashboard' ? 'My Dashboard' : activeTab === 'Report Animal' ? 'Report an Animal' : activeTab === 'Adopt a Pet' ? 'Pet Adoption' : activeTab === 'My Profile' ? 'My Profile' : activeTab}
-            </h2>
           </div>
-
-          <div className="flex items-center gap-4.5">
-            {/* Notification Bell */}
-            <div className="relative">
-              <button 
-                onClick={() => setNotifDropdownOpen(!notifDropdownOpen)}
-                className="p-2 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-xl cursor-pointer relative transition-colors"
-                title="Notifications"
-              >
-                <Bell className="w-5 h-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white"></span>
-                )}
-              </button>
-
-              {/* Notification Popover Dropdown */}
-              {notifDropdownOpen && (
-                <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-                  <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-extrabold text-slate-900">Notifications</span>
-                      {unreadCount > 0 && (
-                        <span className="bg-orange-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-                          {unreadCount} new
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {unreadCount > 0 && (
-                        <button
-                          onClick={handleMarkAllRead}
-                          className="text-[11px] font-bold text-[#237737] hover:underline cursor-pointer"
-                        >
-                          Mark all read
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setNotifDropdownOpen(false)}
-                        className="text-slate-400 hover:text-slate-700 cursor-pointer p-0.5"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
-                    {notifications.slice(0, 5).map((n) => {
-                      const iconInfo = getNotificationIconInfo(n);
-                      const Icon = iconInfo.icon;
-                      const notifId = n._id || n.id;
-                      const isUnread = n.status === 'Unread';
-                      return (
-                        <div
-                          key={notifId}
-                          onClick={() => handleToggleRead(notifId)}
-                          className={`p-3.5 hover:bg-slate-50 transition-colors flex items-start gap-3 cursor-pointer ${
-                            isUnread ? 'bg-emerald-50/30' : ''
-                          }`}
-                        >
-                          <div className={`p-2 rounded-xl shrink-0 ${iconInfo.color}`}>
-                            <Icon className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-1">
-                              <p className={`text-xs font-bold truncate ${isUnread ? 'text-slate-900' : 'text-slate-700'}`}>
-                                {n.title || n.message}
-                              </p>
-                              {isUnread && <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />}
-                            </div>
-                            <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{n.message || n.text}</p>
-                            <span className="text-[10px] text-slate-400 font-semibold mt-1 block">
-                              {formatNotificationTime(n.createdAt || n.timestamp)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {notifications.length === 0 && (
-                      <div className="py-8 text-center text-slate-400 text-xs font-semibold">
-                        No notifications yet
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="p-3 border-t border-slate-100 bg-slate-50/50 text-center">
-                    <button
-                      onClick={() => {
-                        setNotifDropdownOpen(false);
-                        setActiveTab('Notifications');
-                      }}
-                      className="text-xs font-bold text-[#237737] hover:underline cursor-pointer flex items-center justify-center gap-1 w-full"
-                    >
-                      View All Notifications <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Profile Dropdown / Widget */}
-            <UserProfileDropdown
-              onOpenProfile={() => setActiveTab('My Profile')}
-              unreadCount={unreadCount}
-              onOpenNotifications={() => setActiveTab('Notifications')}
-            />
-          </div>
-        </header>
+        </aside>
 
         {/* Dashboard Panels */}
         <main className="flex-1 overflow-y-auto p-6 md:p-8">
@@ -3237,44 +3229,199 @@ const UserDashboard = () => {
                       </button>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-5">
                       {shelterApplicationsList.map((app) => (
                         <div
                           key={app._id}
-                          className="bg-white border border-slate-100 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4 hover:shadow-md transition"
+                          className="bg-white border border-slate-100 rounded-3xl p-5 sm:p-6 shadow-sm space-y-5 hover:shadow-md transition"
                         >
                           {/* Card Header */}
-                          <div className="flex items-start justify-between gap-3">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-100 pb-4">
                             <div className="flex items-center gap-3">
-                              <div className="p-2.5 bg-[#237737]/10 text-[#237737] rounded-xl">
-                                <Building2 className="w-5 h-5" />
+                              <div className="w-12 h-12 rounded-2xl bg-[#237737]/10 text-[#237737] font-black flex items-center justify-center shrink-0">
+                                <Building2 className="w-6 h-6" />
                               </div>
                               <div>
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">{app.shelterName}</h4>
-                                  <span className="text-[10px] text-slate-400 font-bold">#{app.shelterApplicationId}</span>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="font-extrabold text-slate-900 text-base">{app.shelterName}</h4>
+                                  <span className="text-xs text-slate-400 font-bold bg-slate-100 px-2.5 py-0.5 rounded-lg">
+                                    #{app.shelterApplicationId}
+                                  </span>
                                   {app.shelter?.shelterNumber && (
-                                    <span className="px-2 py-0.5 bg-[#237737]/10 border border-[#237737]/30 text-[#237737] text-[10px] font-black rounded-lg">
+                                    <span className="px-2.5 py-0.5 bg-[#237737]/10 border border-[#237737]/30 text-[#237737] text-xs font-black rounded-lg">
                                       {app.shelter.shelterNumber}
                                     </span>
                                   )}
                                 </div>
                                 <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                                  {app.registrationType?.replace(/_/g, ' ')} • Reg: <span className="font-bold text-slate-700">{app.registrationNumber}</span>
+                                  {app.registrationType?.replace(/_/g, ' ')} • Reg Number: <span className="font-bold text-slate-800">{app.registrationNumber || 'N/A'}</span>
                                 </p>
                               </div>
                             </div>
 
-                            <span className={`px-3 py-1 text-[10px] font-black rounded-full border shrink-0 ${
-                              app.status === 'Approved'
-                                ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200'
-                                : app.status === 'Rejected'
-                                ? 'bg-rose-500/10 text-rose-700 border-rose-200'
-                                : 'bg-amber-500/10 text-amber-700 border-amber-200'
-                            }`}>
-                              {app.status}
-                            </span>
+                            <div className="flex items-center gap-2 self-start">
+                              <span className={`px-3 py-1 text-xs font-black rounded-full border shrink-0 ${
+                                app.status === 'Approved'
+                                  ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200/50'
+                                  : app.status === 'Rejected'
+                                  ? 'bg-rose-500/10 text-rose-700 border-rose-200/50'
+                                  : app.status === 'Site Visit'
+                                  ? 'bg-blue-500/10 text-blue-700 border-blue-200/50'
+                                  : 'bg-amber-500/10 text-amber-700 border-amber-200/50'
+                              }`}>
+                                {app.status === 'Site Visit' ? '📅 Site Visit & Valuation' : app.status}
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedUserAppForModal(app);
+                                  setShowUserAppDetailsModal(true);
+                                }}
+                                className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1"
+                              >
+                                <Eye className="w-3.5 h-3.5" /> Details
+                              </button>
+                            </div>
                           </div>
+
+                          {/* 3-Step Audit Timeline Progress Bar */}
+                          <div className="bg-[#F8FAF9] p-4 rounded-2xl border border-slate-100">
+                            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
+                              Application & Site Audit Pipeline
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                              
+                              {/* Step 1 */}
+                              <div className="p-3 bg-white rounded-xl border border-emerald-200/70 shadow-xs flex items-start gap-2.5">
+                                <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg shrink-0 mt-0.5">
+                                  <CheckCircle className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <div className="font-extrabold text-slate-900">1. Application Filed</div>
+                                  <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                                    {new Date(app.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Step 2 */}
+                              <div className={`p-3 bg-white rounded-xl border shadow-xs flex items-start gap-2.5 ${
+                                app.status === 'Site Visit'
+                                  ? 'border-blue-300 ring-2 ring-blue-100 bg-blue-50/30'
+                                  : app.status === 'Approved' || app.status === 'Rejected'
+                                  ? 'border-emerald-200/70'
+                                  : 'border-slate-200 opacity-60'
+                              }`}>
+                                <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                                  app.status === 'Site Visit'
+                                    ? 'bg-blue-100 text-blue-700 animate-pulse'
+                                    : app.status === 'Approved' || app.status === 'Rejected'
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-slate-100 text-slate-400'
+                                }`}>
+                                  <Calendar className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <div className="font-extrabold text-slate-900">2. Physical Site Visit</div>
+                                  <div className="text-[10px] text-blue-700 font-bold mt-0.5">
+                                    {app.siteVisitScheduleDate
+                                      ? `Scheduled: ${new Date(app.siteVisitScheduleDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                                      : app.status === 'Pending'
+                                      ? 'Awaiting admin schedule'
+                                      : 'Inspection completed'}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Step 3 */}
+                              <div className={`p-3 bg-white rounded-xl border shadow-xs flex items-start gap-2.5 ${
+                                app.status === 'Approved'
+                                  ? 'border-emerald-300 ring-2 ring-emerald-100 bg-emerald-50/30'
+                                  : app.status === 'Rejected'
+                                  ? 'border-rose-300 bg-rose-50/30'
+                                  : 'border-slate-200 opacity-60'
+                              }`}>
+                                <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                                  app.status === 'Approved'
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : app.status === 'Rejected'
+                                    ? 'bg-rose-100 text-rose-700'
+                                    : 'bg-slate-100 text-slate-400'
+                                }`}>
+                                  {app.status === 'Approved' ? (
+                                    <CheckCircle className="w-4 h-4" />
+                                  ) : app.status === 'Rejected' ? (
+                                    <AlertCircle className="w-4 h-4" />
+                                  ) : (
+                                    <Clock className="w-4 h-4" />
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="font-extrabold text-slate-900">3. Decision & Credentials</div>
+                                  <div className={`text-[10px] font-bold mt-0.5 ${
+                                    app.status === 'Approved'
+                                      ? 'text-emerald-700'
+                                      : app.status === 'Rejected'
+                                      ? 'text-rose-600'
+                                      : 'text-slate-400'
+                                  }`}>
+                                    {app.status === 'Approved'
+                                      ? `Approved (${app.shelter?.shelterNumber || 'Active'})`
+                                      : app.status === 'Rejected'
+                                      ? 'Declined'
+                                      : 'Pending evaluation report'}
+                                  </div>
+                                </div>
+                              </div>
+
+                            </div>
+                          </div>
+
+                          {/* Site Visit Valuation Banner for user */}
+                          {app.status === 'Site Visit' && (
+                            <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-900 space-y-2">
+                              <div className="flex items-center justify-between flex-wrap gap-2">
+                                <div className="font-black text-sm flex items-center gap-2">
+                                  <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                                  Physical Site Visit Scheduled: {app.siteVisitScheduleDate
+                                    ? new Date(app.siteVisitScheduleDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                                    : 'Upcoming date'}
+                                </div>
+                                {app.siteVisitValuationPeriod && (
+                                  <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-lg border border-blue-200">
+                                    Slot: {app.siteVisitValuationPeriod}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-blue-800 text-xs leading-relaxed">
+                                {app.siteVisitNotes || 'Admin field auditors will visit the premises to physically inspect cages, ventilation, hygiene, water access, and verify registration documents.'}
+                              </p>
+                              {app.siteVisitInspector && (
+                                <div className="text-[11px] text-blue-700 font-semibold pt-1 border-t border-blue-200/60">
+                                  Assigned Inspector: <span className="font-bold text-blue-900">{app.siteVisitInspector}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Site Visit Report Banner if Approved or Rejected with report */}
+                          {app.siteVisitReport && (
+                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs space-y-1.5">
+                              <div className="font-bold text-slate-700 flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
+                                <FileText className="w-3.5 h-3.5 text-slate-500" />
+                                Official Site Inspection & Valuation Report
+                              </div>
+                              <p className="text-slate-800 font-medium italic bg-white p-3 rounded-xl border border-slate-100 leading-relaxed">
+                                "{app.siteVisitReport}"
+                              </p>
+                              {app.siteVisitReportDate && (
+                                <div className="text-[10px] text-slate-400 font-semibold">
+                                  Report Filed: {new Date(app.siteVisitReportDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </div>
+                              )}
+                            </div>
+                          )}
 
                           {/* Info Grid */}
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -3306,19 +3453,25 @@ const UserDashboard = () => {
                               {app.status === 'Approved' && (
                                 <span className="text-emerald-700 font-bold flex items-center gap-1.5">
                                   <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                  Approved by Admin. Temporary password was emailed to {app.shelterEmail}.
+                                  Registration Approved! Temporary login password has been sent to {app.shelterEmail}.
+                                </span>
+                              )}
+                              {app.status === 'Site Visit' && (
+                                <span className="text-blue-700 font-bold flex items-center gap-1.5">
+                                  <Calendar className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                  Site visit scheduled. Please prepare facilities and registers for audit.
                                 </span>
                               )}
                               {app.status === 'Pending' && (
                                 <span className="text-amber-700 font-bold flex items-center gap-1.5">
                                   <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                  Under administrative review. You will receive an email once approved.
+                                  Application submitted. Admin will schedule a site visit and valuation period date.
                                 </span>
                               )}
                               {app.status === 'Rejected' && (
                                 <span className="text-rose-600 font-bold flex items-center gap-1.5">
                                   <AlertCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                                  Rejected{app.reviewNote ? `: ${app.reviewNote}` : ''}
+                                  Application Rejected{app.reviewNote ? `: ${app.reviewNote}` : ''}
                                 </span>
                               )}
                             </div>
@@ -3352,6 +3505,181 @@ const UserDashboard = () => {
 
         </main>
       </div>
+
+      {/* User Shelter Application Details & Site Visit Audit Modal */}
+      {showUserAppDetailsModal && selectedUserAppForModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-lg w-full border border-slate-100 shadow-2xl p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#237737]/10 text-[#237737] font-black flex items-center justify-center shrink-0">
+                  <Building2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-black text-slate-900">
+                      {selectedUserAppForModal.shelterName}
+                    </h3>
+                    <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 text-xs font-black rounded-lg">
+                      #{selectedUserAppForModal.shelterApplicationId}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                    {selectedUserAppForModal.registrationType?.replace(/_/g, ' ')} • Reg: {selectedUserAppForModal.registrationNumber || 'N/A'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowUserAppDetailsModal(false);
+                  setSelectedUserAppForModal(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Status Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${
+                selectedUserAppForModal.status === 'Approved'
+                  ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200/50'
+                  : selectedUserAppForModal.status === 'Rejected'
+                  ? 'bg-rose-500/10 text-rose-700 border-rose-200/50'
+                  : selectedUserAppForModal.status === 'Site Visit'
+                  ? 'bg-blue-500/10 text-blue-700 border-blue-200/50'
+                  : 'bg-amber-500/10 text-amber-700 border-amber-200/50'
+              }`}>
+                Status: {selectedUserAppForModal.status === 'Site Visit' ? 'Site Visit & Valuation in Progress' : selectedUserAppForModal.status}
+              </span>
+
+              {selectedUserAppForModal.shelter?.shelterNumber && (
+                <span className="px-3 py-1 rounded-xl text-xs font-black bg-[#237737]/10 text-[#237737] border border-[#237737]/30">
+                  Facility ID: {selectedUserAppForModal.shelter.shelterNumber}
+                </span>
+              )}
+            </div>
+
+            {/* Physical Site Visit & Valuation Section */}
+            {(selectedUserAppForModal.siteVisitScheduleDate || selectedUserAppForModal.status === 'Site Visit' || selectedUserAppForModal.siteVisitReport) && (
+              <div className="p-4 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-3 text-xs text-blue-950">
+                <div className="font-black text-sm flex items-center gap-2 text-blue-900 border-b border-blue-200/60 pb-2">
+                  <Calendar className="w-4 h-4 text-blue-600" />
+                  Physical Site Visit & Valuation Audit
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-500 font-bold block text-[10px] uppercase">Scheduled Valuation Date</span>
+                    <p className="font-extrabold text-blue-950 mt-0.5">
+                      {selectedUserAppForModal.siteVisitScheduleDate
+                        ? new Date(selectedUserAppForModal.siteVisitScheduleDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                        : 'To be announced'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-[10px] uppercase">Inspection Window / Slot</span>
+                    <p className="font-bold text-slate-800 mt-0.5">
+                      {selectedUserAppForModal.siteVisitValuationPeriod || 'Standard Evaluation Window'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-[10px] uppercase">Assigned Auditor</span>
+                    <p className="font-bold text-slate-800 mt-0.5">
+                      {selectedUserAppForModal.siteVisitInspector || 'Admin Field Officer'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-bold block text-[10px] uppercase">Preparation Instructions</span>
+                    <p className="font-semibold text-slate-700 mt-0.5 italic">
+                      {selectedUserAppForModal.siteVisitNotes || 'Please ensure cages, registers, and staff are available for verification.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Official Inspection Report if filed */}
+                {selectedUserAppForModal.siteVisitReport && (
+                  <div className="pt-2 border-t border-blue-200/60 mt-1">
+                    <span className="text-blue-900 font-bold block uppercase text-[10px]">
+                      Official Site Inspection & Valuation Report
+                    </span>
+                    <p className="font-medium text-slate-800 mt-1 bg-white p-3 rounded-xl border border-blue-100 leading-relaxed text-xs">
+                      "{selectedUserAppForModal.siteVisitReport}"
+                    </p>
+                    {selectedUserAppForModal.siteVisitReportDate && (
+                      <span className="text-[10px] text-slate-400 font-semibold block mt-1">
+                        Report Filed: {new Date(selectedUserAppForModal.siteVisitReportDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Application Data Grid */}
+            <div className="bg-[#F8FAF9] rounded-2xl p-4 border border-slate-100 space-y-3 text-xs">
+              <div className="font-bold text-slate-700 uppercase text-[10px] tracking-wider">
+                Submitted Facility Information
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Shelter Email</span>
+                  <p className="font-extrabold text-slate-800 mt-0.5">{selectedUserAppForModal.shelterEmail}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Phone Number</span>
+                  <p className="font-extrabold text-slate-800 mt-0.5">+91 {selectedUserAppForModal.shelterPhoneNumber}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Capacity</span>
+                  <p className="font-extrabold text-slate-800 mt-0.5">
+                    {selectedUserAppForModal.occupiedCages || 0} occupied / {selectedUserAppForModal.totalCages || 0} total cages
+                  </p>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Staff Members</span>
+                  <p className="font-extrabold text-slate-800 mt-0.5">{selectedUserAppForModal.totalStaffs || 0} Certified Staff</p>
+                </div>
+                <div className="sm:col-span-2">
+                  <span className="text-slate-400 font-bold block text-[10px] uppercase">GPS Coordinates</span>
+                  <p className="font-extrabold text-slate-800 mt-0.5">
+                    {selectedUserAppForModal.latitude?.toFixed(5)}, {selectedUserAppForModal.longitude?.toFixed(5)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Review Note if any and no site report */}
+              {selectedUserAppForModal.reviewNote && !selectedUserAppForModal.siteVisitReport && (
+                <div className="pt-2 border-t border-slate-200/60">
+                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Admin Review Note</span>
+                  <p className="font-semibold text-slate-700 mt-0.5 italic">{selectedUserAppForModal.reviewNote}</p>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-slate-200/60 text-[11px] text-slate-400 font-semibold">
+                Submitted On: {new Date(selectedUserAppForModal.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => {
+                  setShowUserAppDetailsModal(false);
+                  setSelectedUserAppForModal(null);
+                }}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Close Details
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* Pet Details Modal */}
       {selectedPet && (

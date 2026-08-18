@@ -6,10 +6,25 @@ const animalSchema = new mongoose.Schema(
       type: String,
       unique: true,
     },
+    name: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'User ID is required'],
+      default: null,
+    },
+    shelterId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Shelter',
+      default: null,
+    },
+    shelterName: {
+      type: String,
+      default: '',
+      trim: true,
     },
     species: {
       type: String,
@@ -23,32 +38,35 @@ const animalSchema = new mongoose.Schema(
     },
     gender: {
       type: String,
-      enum: {
-        values: ['Male', 'Female', 'Unknown'],
-        message: '{VALUE} is not a valid gender',
-      },
+      enum: ['Male', 'Female', 'Unknown'],
       default: 'Unknown',
     },
     approxAge: {
-      type: Number,
-      default: 0,
-      min: 0,
+      type: String,
+      default: '',
     },
     color: {
       type: String,
       default: '',
       trim: true,
     },
+    cageNumber: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    healthCondition: {
+      type: String,
+      default: 'Healthy',
+      trim: true,
+    },
     status: {
       type: String,
-      enum: {
-        values: ['Rescued', 'Adopted', 'Released', 'Dead'],
-        message: '{VALUE} is not a valid animal status',
-      },
-      default: 'Rescued',
+      enum: ['Available', 'Rescued', 'Adopted', 'Under Treatment', 'Critical', 'Released', 'Dead'],
+      default: 'Available',
     },
     photo: {
-      type: String, // Base64 encoded image
+      type: String,
       default: '',
     },
     isDeleted: {

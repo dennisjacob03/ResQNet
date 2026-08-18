@@ -276,13 +276,37 @@ const loginUser = async (req, res) => {
           user = await User.create({
             fullName: decodedToken.name || 'Google User',
             email: emailFromToken.toLowerCase(),
-            phoneNumber: 'Not provided',
+            phoneNumber: decodedToken.phone_number || 'Not provided',
             password: '',
             role: 'Public User',
             profilePic: decodedToken.picture || '',
             status: 'Active',
+            isEmailVerified: true,
+            isPhoneVerified: Boolean(decodedToken.phone_number),
             firebaseUid: decodedToken.uid,
           });
+
+          // Dispatch Welcome in-app notification for new Google user
+          createNotificationHelper({
+            userId: user._id,
+            title: 'Welcome to ResQNet! 🐾',
+            message: `Greetings ${user.fullName}! Welcome to ResQNet. We are delighted to have you join our animal welfare and rescue network. You can report emergencies, adopt pets, and register shelters.`,
+            type: 'Welcome',
+            priority: 'Medium',
+          }).catch((err) => console.error('Failed to create welcome notification:', err));
+        } else {
+          let updated = false;
+          if (!user.isEmailVerified) {
+            user.isEmailVerified = true;
+            updated = true;
+          }
+          if (decodedToken.picture && !user.profilePic) {
+            user.profilePic = decodedToken.picture;
+            updated = true;
+          }
+          if (updated) {
+            await user.save();
+          }
         }
 
         if (user.isDeleted || user.status === 'Deleted') {
@@ -607,6 +631,7 @@ const googleAuth = async (req, res) => {
         role: 'Public User',
         profilePic: payload.picture || '',
         status: 'Active',
+        isEmailVerified: true,
         firebaseUid,
       });
 
@@ -627,8 +652,12 @@ const googleAuth = async (req, res) => {
         });
       }
 
-      // Link firebaseUid if not set
+      // Link firebaseUid and verify email if not set
       let modified = false;
+      if (!user.isEmailVerified) {
+        user.isEmailVerified = true;
+        modified = true;
+      }
       if (!user.firebaseUid) {
         user.firebaseUid = payload.sub;
         modified = true;

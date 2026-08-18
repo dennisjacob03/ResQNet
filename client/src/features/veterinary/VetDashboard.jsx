@@ -134,27 +134,76 @@ const VetDashboard = () => {
   };
 
   return (
-    <div className="flex h-screen w-full bg-[#F8FAF9] font-sans overflow-hidden text-slate-800">
+    <div className="flex flex-col h-screen w-full bg-[#F8FAF9] font-sans overflow-hidden text-slate-800">
       
-      {/* Sidebar Panel */}
-      <aside 
-        className={`${
-          sidebarOpen ? 'w-64' : 'w-0 lg:w-20'
-        } transition-all duration-300 bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-hidden shrink-0`}
-      >
-        <div>
-          {/* Brand Header */}
-          <div className="h-16 px-5 border-b border-slate-100 flex items-center gap-3">
-            {sidebarOpen ? (
-              <img src="/logo.png" alt="ResQNet Logo" className="h-9 w-auto object-contain select-none" />
-            ) : (
-              <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-start select-none">
-                <img src="/logo.png" alt="ResQNet Logo" className="h-9 min-w-[130px] max-w-none object-cover object-left" />
+      {/* Full-width Top Navbar */}
+      <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-8 flex-shrink-0 z-30 w-full">
+        {/* Brand Logo */}
+        <div className="flex items-center gap-2 select-none shrink-0">
+          <img src="/logo.png" alt="ResQNet Logo" className="h-9 w-auto object-contain" />
+        </div>
+
+        {/* Center: Search Bar */}
+        <div className="flex-1 flex justify-center px-4 max-w-xl mx-auto">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search patients, medical records, diagnoses..."
+              className="w-full pl-10 pr-4 py-2 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:border-[#237737] focus:bg-white transition text-slate-800 placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4.5 shrink-0">
+          {/* Notification Bell */}
+          <div className="relative">
+            <button
+              onClick={() => setNotifOpen(!notifOpen)}
+              className="p-2 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-xl cursor-pointer relative transition-colors"
+              title="Notifications"
+            >
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white" />
+            </button>
+
+            {notifOpen && (
+              <div className="absolute right-0 top-12 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                  <span className="text-sm font-extrabold text-slate-900">Notifications</span>
+                  <button onClick={() => setNotifOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer p-0.5"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {[
+                    { text: 'Emergency case: Trapped Bird needs wing splint', time: '10 min ago' },
+                    { text: 'Vaccination batch updated for Canine Ward B', time: '1h ago' },
+                    { text: 'New rescue transferred from Team Alpha for checkup', time: '3h ago' },
+                  ].map((n, i) => (
+                    <div key={i} className="p-3.5 hover:bg-slate-50 transition-colors">
+                      <p className="text-xs text-slate-700 font-semibold">{n.text}</p>
+                      <p className="text-[10px] text-slate-400 mt-1">{n.time}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
 
-          {/* Navigation Links */}
+          {/* Profile Dropdown / Widget */}
+          <UserProfileDropdown
+            onOpenProfile={() => setActiveTab('My Profile')}
+            unreadCount={1}
+            onOpenNotifications={() => setNotifOpen(!notifOpen)}
+            customRole="Veterinary Staff"
+          />
+        </div>
+      </header>
+
+      {/* Main Container Below Navbar */}
+      <div className="flex flex-1 overflow-hidden">
+        
+        {/* Sidebar Panel (below navbar) */}
+        <aside className="w-64 bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-y-auto shrink-0">
           <nav className="p-4 space-y-1.5">
             {[
               { name: 'Vet Dashboard', icon: Stethoscope },
@@ -173,86 +222,24 @@ const VetDashboard = () => {
                 >
                   <div className="flex items-center gap-3">
                     <IconComponent className={`w-4.5 h-4.5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                    {sidebarOpen && <span>{item.name}</span>}
+                    <span>{item.name}</span>
                   </div>
                 </button>
               );
             })}
           </nav>
-        </div>
 
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-100">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-rose-600 rounded-xl text-sm font-semibold transition cursor-pointer"
-          >
-            <LogOut className="w-4.5 h-4.5 text-slate-500 hover:text-rose-500" />
-            {sidebarOpen && <span>Log Out</span>}
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        
-        {/* Top Navbar */}
-        <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-8 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-lg cursor-pointer transition-colors"
+          {/* Sidebar Footer */}
+          <div className="p-4 border-t border-slate-100">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-rose-600 rounded-xl text-sm font-semibold transition cursor-pointer"
             >
-              <Menu className="w-5 h-5" />
+              <LogOut className="w-4.5 h-4.5 text-slate-500 hover:text-rose-500" />
+              <span>Log Out</span>
             </button>
-            <h2 className="text-lg font-bold text-slate-900">
-              {activeTab === 'My Profile' ? 'Doctor Profile' : 'Veterinary Records'}
-            </h2>
           </div>
-
-          <div className="flex items-center gap-4.5">
-            {/* Notification Bell */}
-            <div className="relative">
-              <button
-                onClick={() => setNotifOpen(!notifOpen)}
-                className="p-2 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-xl cursor-pointer relative transition-colors"
-                title="Notifications"
-              >
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white" />
-              </button>
-
-              {notifOpen && (
-                <div className="absolute right-0 top-12 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-                  <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-                    <span className="text-sm font-extrabold text-slate-900">Notifications</span>
-                    <button onClick={() => setNotifOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer p-0.5"><X className="w-4 h-4" /></button>
-                  </div>
-                  <div className="divide-y divide-slate-50">
-                    {[
-                      { text: 'Emergency case: Trapped Bird needs wing splint', time: '10 min ago' },
-                      { text: 'Vaccination batch updated for Canine Ward B', time: '1h ago' },
-                      { text: 'New rescue transferred from Team Alpha for checkup', time: '3h ago' },
-                    ].map((n, i) => (
-                      <div key={i} className="p-3.5 hover:bg-slate-50 transition-colors">
-                        <p className="text-xs text-slate-700 font-semibold">{n.text}</p>
-                        <p className="text-[10px] text-slate-400 mt-1">{n.time}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Profile Dropdown / Widget */}
-            <UserProfileDropdown
-              onOpenProfile={() => setActiveTab('My Profile')}
-              unreadCount={1}
-              onOpenNotifications={() => setNotifOpen(!notifOpen)}
-              customRole="Veterinary Staff"
-            />
-          </div>
-        </header>
+        </aside>
 
         {/* Dashboard Panels */}
         <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">

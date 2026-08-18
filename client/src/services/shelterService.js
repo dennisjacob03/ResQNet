@@ -26,11 +26,16 @@ export const getAllApplications = async () => {
   return response.data;
 };
 
-// Admin: Approve or Reject an application
-export const reviewApplication = async (id, status, reviewNote = '') => {
+// Admin: Review a shelter application (Schedule site visit, submit report, approve, reject)
+export const reviewApplication = async (id, statusOrData, maybeReviewNote = '') => {
+  const payload =
+    typeof statusOrData === 'object' && statusOrData !== null
+      ? statusOrData
+      : { status: statusOrData, reviewNote: maybeReviewNote };
+
   const response = await axios.put(
     `${API_URL}/applications/${id}/review`,
-    { status, reviewNote },
+    payload,
     getAuthHeader()
   );
   return response.data;

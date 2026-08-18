@@ -6,11 +6,15 @@ const User = require('../users/userModel');
 // @access  Public / Authenticated
 const getAllShelters = async (req, res) => {
   try {
-    const { search, status } = req.query;
+    const { search, status, currentStatus } = req.query;
     const filter = { isDeleted: { $ne: true } };
 
     if (status && status !== 'All') {
       filter.status = status;
+    }
+
+    if (currentStatus && currentStatus !== 'All') {
+      filter.currentStatus = currentStatus;
     }
 
     if (search && search.trim()) {
@@ -86,7 +90,8 @@ const createShelter = async (req, res) => {
       totalStaffs = 0,
       totalCages = 0,
       occupiedCages = 0,
-      status = 'UNDER_MAINTENANCE',
+      currentStatus = 'UNDER_MAINTENANCE',
+      status = 'Active',
       userId,
     } = req.body;
 
@@ -108,7 +113,8 @@ const createShelter = async (req, res) => {
       totalStaffs: Number(totalStaffs),
       totalCages: Number(totalCages),
       occupiedCages: Number(occupiedCages),
-      status,
+      currentStatus: req.body.currentStatus || (req.body.status && ['OPEN', 'FULL', 'UNDER_MAINTENANCE', 'CLOSED'].includes(req.body.status) ? req.body.status : currentStatus),
+      status: ['Active', 'Inactive'].includes(status) ? status : 'Active',
       userId: userId || req.user._id,
     });
 
@@ -151,6 +157,7 @@ const updateShelter = async (req, res) => {
       'totalStaffs',
       'totalCages',
       'occupiedCages',
+      'currentStatus',
       'status',
       'userId',
     ];
@@ -197,7 +204,8 @@ const deleteShelter = async (req, res) => {
 
     // Soft delete shelter
     shelter.isDeleted = true;
-    shelter.status = 'CLOSED';
+    shelter.status = 'Inactive';
+    shelter.currentStatus = 'CLOSED';
     shelter.deletedAt = new Date();
     await shelter.save();
 

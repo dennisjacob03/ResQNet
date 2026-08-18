@@ -9,10 +9,6 @@ const categorySchema = new mongoose.Schema(
     categoryName: {
       type: String,
       required: [true, 'Category name is required'],
-      enum: {
-        values: ['Dog', 'Cat', 'Bird', 'Cow', 'Other'],
-        message: '{VALUE} is not a valid category',
-      },
       trim: true,
     },
     description: {

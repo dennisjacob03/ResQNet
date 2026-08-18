@@ -13,6 +13,7 @@ const locationRoutes = require('./modules/locations/locationRoutes');
 const shelterApplicationRoutes = require('./modules/shelters/shelterApplicationRoutes');
 const userRoutes = require('./modules/users/userRoutes');
 const notificationRoutes = require('./modules/notifications/notificationRoutes');
+const animalRoutes = require('./modules/animals/animalRoutes');
 const { verifyTransporter } = require('./utils/emailService');
 
 const app = express();
@@ -37,6 +38,7 @@ app.use('/api/locations', locationRoutes);
 app.use('/api/shelters', shelterApplicationRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/animals', animalRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

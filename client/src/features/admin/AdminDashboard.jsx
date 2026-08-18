@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import UserProfileDropdown from '../../components/common/UserProfileDropdown';
@@ -53,6 +53,10 @@ import {
   Construction,
   Wifi,
   Zap,
+  Dog,
+  Tag,
+  Edit2,
+  Layers,
 } from 'lucide-react';
 import { getAllApplications, reviewApplication } from '../../services/shelterApplicationService';
 import {
@@ -69,6 +73,16 @@ import {
   createUser,
   deleteUser,
 } from '../../services/userService';
+import {
+  getAllCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  getAllAnimals,
+  createAnimal,
+  updateAnimal,
+  deleteAnimal,
+} from '../../services/animalService';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
@@ -78,6 +92,50 @@ const AdminDashboard = () => {
   const [subTab, setSubTab] = useState('Overview');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [notifOpen, setNotifOpen] = useState(false);
+
+  // Animals & Category Management State
+  const [animalsList, setAnimalsList] = useState([]);
+  const [animalsLoading, setAnimalsLoading] = useState(false);
+  const [animalsLoaded, setAnimalsLoaded] = useState(false);
+  const [animalCategories, setAnimalCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+  const [animalActiveSubView, setAnimalActiveSubView] = useState('categories'); // 'categories' or 'animals'
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
+  const [categoryStatusFilter, setCategoryStatusFilter] = useState('All');
+  const [animalSearchQuery, setAnimalSearchQuery] = useState('');
+  const [animalSpeciesFilter, setAnimalSpeciesFilter] = useState('All');
+  const [animalStatusFilter, setAnimalStatusFilter] = useState('All');
+
+  // Add / Edit Category Modal State
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [categoryName, setCategoryName] = useState('');
+  const [categoryDescription, setCategoryDescription] = useState('');
+  const [categoryStatus, setCategoryStatus] = useState('Active');
+  const [categorySubmitting, setCategorySubmitting] = useState(false);
+  const [categoryError, setCategoryError] = useState('');
+  const [categorySuccess, setCategorySuccess] = useState('');
+
+  // Add Animal Modal State
+  const [showAddAnimalModal, setShowAddAnimalModal] = useState(false);
+  const [animalName, setAnimalName] = useState('');
+  const [animalSpecies, setAnimalSpecies] = useState('Dog');
+  const [animalBreed, setAnimalBreed] = useState('');
+  const [animalGender, setAnimalGender] = useState('Male');
+  const [animalApproxAge, setAnimalApproxAge] = useState('');
+  const [animalColor, setAnimalColor] = useState('');
+  const [animalCageNumber, setAnimalCageNumber] = useState('');
+  const [animalHealthCondition, setAnimalHealthCondition] = useState('Healthy');
+  const [animalStatus, setAnimalStatus] = useState('Available');
+  const [animalShelterName, setAnimalShelterName] = useState('Central Animal Registry');
+  const [animalSubmitting, setAnimalSubmitting] = useState(false);
+  const [animalError, setAnimalError] = useState('');
+  const [animalSuccess, setAnimalSuccess] = useState('');
+
+  // Animal Details Modal State
+  const [selectedAnimalForModal, setSelectedAnimalForModal] = useState(null);
+  const [showAnimalDetailsModal, setShowAnimalDetailsModal] = useState(false);
 
   // User Management State (Real Database Integration)
   const [usersList, setUsersList] = useState([]);
@@ -220,6 +278,29 @@ const AdminDashboard = () => {
   const [shelterSubmitting, setShelterSubmitting] = useState(false);
   const [shelterFormError, setShelterFormError] = useState('');
   const [shelterFormSuccess, setShelterFormSuccess] = useState('');
+  const [selectedShelterForModal, setSelectedShelterForModal] = useState(null);
+  const [showShelterDetailsModal, setShowShelterDetailsModal] = useState(false);
+  const [shelterActionLoading, setShelterActionLoading] = useState({});
+
+  // Application Details Modal State
+  const [selectedApplicationForModal, setSelectedApplicationForModal] = useState(null);
+  const [showApplicationDetailsModal, setShowApplicationDetailsModal] = useState(false);
+
+  // Site Visit & Valuation Modal State
+  const [showSiteVisitModal, setShowSiteVisitModal] = useState(false);
+  const [selectedAppForSiteVisit, setSelectedAppForSiteVisit] = useState(null);
+  const [siteVisitDate, setSiteVisitDate] = useState('');
+  const [siteVisitValuationPeriod, setSiteVisitValuationPeriod] = useState('Full Day Inspection');
+  const [siteVisitNotes, setSiteVisitNotes] = useState('');
+  const [siteVisitInspector, setSiteVisitInspector] = useState('');
+  const [siteVisitSubmitting, setSiteVisitSubmitting] = useState(false);
+
+  // Site Visit Inspection Report Modal State
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [selectedAppForReport, setSelectedAppForReport] = useState(null);
+  const [siteVisitReportText, setSiteVisitReportText] = useState('');
+  const [reportDecision, setReportDecision] = useState('Approved');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
 
   // Add Shelter Form Fields
   const [addShelterName, setAddShelterName] = useState('');
@@ -276,6 +357,91 @@ const AdminDashboard = () => {
       console.error('Review failed:', e.message);
     } finally {
       setShelterReviewing(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
+  const handleOpenScheduleSiteVisit = (app) => {
+    setSelectedAppForSiteVisit(app);
+    setSiteVisitDate(
+      app.siteVisitScheduleDate
+        ? new Date(app.siteVisitScheduleDate).toISOString().slice(0, 10)
+        : new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10)
+    );
+    setSiteVisitValuationPeriod(app.siteVisitValuationPeriod || '10:00 AM - 2:00 PM (Evaluation Window)');
+    setSiteVisitInspector(app.siteVisitInspector || user?.fullName || 'Admin Field Officer');
+    setSiteVisitNotes(
+      app.siteVisitNotes ||
+        'Please have premises, animal registers, veterinary clearance documents, and cages ready for physical audit.'
+    );
+    setShowSiteVisitModal(true);
+  };
+
+  const handleConfirmScheduleSiteVisit = async (e) => {
+    e.preventDefault();
+    if (!selectedAppForSiteVisit) return;
+    setSiteVisitSubmitting(true);
+    try {
+      const payload = {
+        status: 'Site Visit',
+        siteVisitScheduleDate: siteVisitDate ? new Date(siteVisitDate) : new Date(),
+        siteVisitValuationPeriod,
+        siteVisitInspector,
+        siteVisitNotes,
+      };
+      const res = await reviewApplication(selectedAppForSiteVisit._id, payload);
+      if (res.success) {
+        setShelterApplications((prev) =>
+          prev.map((a) => (a._id === selectedAppForSiteVisit._id ? res.application : a))
+        );
+        setShowSiteVisitModal(false);
+        setSelectedAppForSiteVisit(null);
+      }
+    } catch (err) {
+      console.error('Failed to schedule site visit:', err.message);
+    } finally {
+      setSiteVisitSubmitting(false);
+    }
+  };
+
+  const handleOpenReportModal = (app) => {
+    setSelectedAppForReport(app);
+    setSiteVisitReportText(
+      app.siteVisitReport ||
+        `Physical site visit conducted on ${
+          app.siteVisitScheduleDate
+            ? new Date(app.siteVisitScheduleDate).toLocaleDateString('en-IN')
+            : new Date().toLocaleDateString('en-IN')
+        }. Premises inspected for cage cleanliness, water/food supply, animal safety, and staff readiness. Verified ${app.occupiedCages || 0}/${app.totalCages || 0} cages and ${app.totalStaffs || 0} staff members.`
+    );
+    setReportDecision('Approved');
+    setShowReportModal(true);
+  };
+
+  const handleSubmitSiteVisitReport = async (e) => {
+    e.preventDefault();
+    if (!selectedAppForReport) return;
+    setReportSubmitting(true);
+    try {
+      const payload = {
+        status: reportDecision,
+        siteVisitReport: siteVisitReportText,
+        reviewNote: siteVisitReportText,
+      };
+      const res = await reviewApplication(selectedAppForReport._id, payload);
+      if (res.success) {
+        setShelterApplications((prev) =>
+          prev.map((a) => (a._id === selectedAppForReport._id ? res.application : a))
+        );
+        if (reportDecision === 'Approved') {
+          loadShelters();
+        }
+        setShowReportModal(false);
+        setSelectedAppForReport(null);
+      }
+    } catch (err) {
+      console.error('Failed to submit site visit report:', err.message);
+    } finally {
+      setReportSubmitting(false);
     }
   };
 
@@ -347,16 +513,41 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleUpdateShelterStatus = async (shelterId, newStatus) => {
+  const handleToggleShelterStatus = async (shelter) => {
+    const shelterId = shelter._id;
+    const currentAccountStatus = shelter.status === 'Inactive' ? 'Inactive' : 'Active';
+    const nextStatus = currentAccountStatus === 'Active' ? 'Inactive' : 'Active';
+    setShelterActionLoading(prev => ({ ...prev, [shelterId]: true }));
     try {
-      const res = await updateShelter(shelterId, { status: newStatus });
+      const res = await updateShelter(shelterId, { status: nextStatus });
       if (res.success) {
         setSheltersList(prev =>
-          prev.map(s => s._id === shelterId ? res.shelter : s)
+          prev.map(s => s._id === shelterId ? { ...s, ...res.shelter, status: nextStatus } : s)
         );
+        if (selectedShelterForModal?._id === shelterId) {
+          setSelectedShelterForModal(prev => ({ ...prev, ...res.shelter, status: nextStatus }));
+        }
       }
     } catch (err) {
-      console.error('Update status failed:', err.message);
+      console.error('Toggle shelter status failed:', err.message);
+    } finally {
+      setShelterActionLoading(prev => ({ ...prev, [shelterId]: false }));
+    }
+  };
+
+  const handleUpdateShelterCurrentStatus = async (shelterId, newCurrentStatus) => {
+    try {
+      const res = await updateShelter(shelterId, { currentStatus: newCurrentStatus });
+      if (res.success) {
+        setSheltersList(prev =>
+          prev.map(s => s._id === shelterId ? { ...s, ...res.shelter, currentStatus: newCurrentStatus } : s)
+        );
+        if (selectedShelterForModal?._id === shelterId) {
+          setSelectedShelterForModal(prev => ({ ...prev, ...res.shelter, currentStatus: newCurrentStatus }));
+        }
+      }
+    } catch (err) {
+      console.error('Update shelter currentStatus failed:', err.message);
     }
   };
 
@@ -587,43 +778,296 @@ const AdminDashboard = () => {
     );
   };
 
+  // ─────────────────────────────────────────────
+  // Animal & Category Handlers
+  // ─────────────────────────────────────────────
+  const loadCategories = async () => {
+    setCategoriesLoading(true);
+    try {
+      const res = await getAllCategories();
+      setAnimalCategories(res.data || []);
+    } catch (e) {
+      console.error('Failed to load animal categories:', e.message);
+    } finally {
+      setCategoriesLoading(false);
+      setCategoriesLoaded(true);
+    }
+  };
+
+  const loadAnimals = async () => {
+    setAnimalsLoading(true);
+    try {
+      const res = await getAllAnimals();
+      setAnimalsList(res.data || []);
+    } catch (e) {
+      console.error('Failed to load animals:', e.message);
+    } finally {
+      setAnimalsLoading(false);
+      setAnimalsLoaded(true);
+    }
+  };
+
+  useEffect(() => {
+    loadCategories();
+    loadAnimals();
+  }, []);
+
+  const handleOpenAddCategoryModal = () => {
+    setEditingCategory(null);
+    setCategoryName('');
+    setCategoryDescription('');
+    setCategoryStatus('Active');
+    setCategoryError('');
+    setCategorySuccess('');
+    setShowCategoryModal(true);
+  };
+
+  const handleOpenEditCategoryModal = (cat) => {
+    setEditingCategory(cat);
+    setCategoryName(cat.categoryName || '');
+    setCategoryDescription(cat.description || '');
+    setCategoryStatus(cat.status || 'Active');
+    setCategoryError('');
+    setCategorySuccess('');
+    setShowCategoryModal(true);
+  };
+
+  const handleSaveCategory = async (e) => {
+    e.preventDefault();
+    if (!categoryName.trim()) {
+      setCategoryError('Category Name is required.');
+      return;
+    }
+    setCategorySubmitting(true);
+    setCategoryError('');
+    setCategorySuccess('');
+
+    try {
+      if (editingCategory) {
+        await updateCategory(editingCategory._id, {
+          categoryName: categoryName.trim(),
+          description: categoryDescription.trim(),
+          status: categoryStatus,
+        });
+        setCategorySuccess(`Category "${categoryName}" updated successfully!`);
+      } else {
+        await createCategory({
+          categoryName: categoryName.trim(),
+          description: categoryDescription.trim(),
+          status: categoryStatus,
+        });
+        setCategorySuccess(`Category "${categoryName}" created successfully!`);
+      }
+      await loadCategories();
+      setTimeout(() => {
+        setShowCategoryModal(false);
+        setEditingCategory(null);
+        setCategoryName('');
+        setCategoryDescription('');
+        setCategoryStatus('Active');
+        setCategorySuccess('');
+      }, 700);
+    } catch (err) {
+      setCategoryError(err.message || 'Failed to save category');
+    } finally {
+      setCategorySubmitting(false);
+    }
+  };
+
+  const handleToggleCategoryStatus = async (cat) => {
+    const newStatus = cat.status === 'Active' ? 'Inactive' : 'Active';
+    try {
+      await updateCategory(cat._id, { status: newStatus });
+      setAnimalCategories((prev) =>
+        prev.map((c) => (c._id === cat._id ? { ...c, status: newStatus } : c))
+      );
+    } catch (err) {
+      console.error('Failed to toggle category status:', err.message);
+    }
+  };
+
+  const handleDeleteCategory = async (cat) => {
+    if (!window.confirm(`Are you sure you want to delete category "${cat.categoryName}" (${cat.categoryId})?`)) {
+      return;
+    }
+    try {
+      await deleteCategory(cat._id);
+      setAnimalCategories((prev) => prev.filter((c) => c._id !== cat._id));
+    } catch (err) {
+      alert(err.message || 'Failed to delete category');
+    }
+  };
+
+  const handleOpenAddAnimalModal = () => {
+    setAnimalName('');
+    setAnimalSpecies(animalCategories[0]?.categoryName || 'Dog');
+    setAnimalBreed('');
+    setAnimalGender('Male');
+    setAnimalApproxAge('');
+    setAnimalColor('');
+    setAnimalCageNumber('');
+    setAnimalHealthCondition('Healthy');
+    setAnimalStatus('Available');
+    setAnimalShelterName('Central Animal Registry');
+    setAnimalError('');
+    setAnimalSuccess('');
+    setShowAddAnimalModal(true);
+  };
+
+  const handleSaveAnimal = async (e) => {
+    e.preventDefault();
+    if (!animalSpecies.trim()) {
+      setAnimalError('Species / Category is required.');
+      return;
+    }
+    setAnimalSubmitting(true);
+    setAnimalError('');
+    setAnimalSuccess('');
+
+    try {
+      await createAnimal({
+        name: animalName.trim(),
+        species: animalSpecies.trim(),
+        breed: animalBreed.trim(),
+        gender: animalGender,
+        approxAge: animalApproxAge.trim(),
+        color: animalColor.trim(),
+        cageNumber: animalCageNumber.trim(),
+        healthCondition: animalHealthCondition,
+        status: animalStatus,
+        shelterName: animalShelterName.trim() || 'Central Animal Registry',
+      });
+      setAnimalSuccess('Animal registered successfully!');
+      await loadAnimals();
+      setTimeout(() => {
+        setShowAddAnimalModal(false);
+        setAnimalName('');
+        setAnimalBreed('');
+        setAnimalApproxAge('');
+        setAnimalColor('');
+        setAnimalCageNumber('');
+        setAnimalSuccess('');
+      }, 700);
+    } catch (err) {
+      setAnimalError(err.message || 'Failed to register animal');
+    } finally {
+      setAnimalSubmitting(false);
+    }
+  };
+
+  const handleToggleAnimalStatus = async (animal, newStatus) => {
+    try {
+      await updateAnimal(animal._id, { status: newStatus });
+      setAnimalsList((prev) =>
+        prev.map((a) => (a._id === animal._id ? { ...a, status: newStatus } : a))
+      );
+      if (selectedAnimalForModal && selectedAnimalForModal._id === animal._id) {
+        setSelectedAnimalForModal((prev) => ({ ...prev, status: newStatus }));
+      }
+    } catch (err) {
+      console.error('Failed to update animal status:', err.message);
+    }
+  };
+
+  const handleDeleteAnimal = async (animal) => {
+    if (!window.confirm(`Are you sure you want to remove ${animal.name || 'animal'} (${animal.animalId}) from the active registry?`)) {
+      return;
+    }
+    try {
+      await deleteAnimal(animal._id);
+      setAnimalsList((prev) => prev.filter((a) => a._id !== animal._id));
+      if (selectedAnimalForModal && selectedAnimalForModal._id === animal._id) {
+        setShowAnimalDetailsModal(false);
+        setSelectedAnimalForModal(null);
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to delete animal');
+    }
+  };
+
   return (
-    <div className="flex h-screen w-full bg-[#F8FAF9] font-sans overflow-hidden text-slate-800">
+    <div className="flex flex-col h-screen w-full bg-[#F8FAF9] font-sans overflow-hidden text-slate-800">
       
-      {/* Sidebar Panel */}
-      <aside 
-        className={`${
-          sidebarOpen ? 'w-64' : 'w-0 lg:w-20'
-        } transition-all duration-300 bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-hidden shrink-0`}
-      >
-        <div>
-          {/* Brand Header */}
-          <div className="h-16 px-5 border-b border-slate-100 flex items-center gap-3">
-            {sidebarOpen ? (
-              <img src="/logo.png" alt="ResQNet Logo" className="h-9 w-auto object-contain select-none" />
-            ) : (
-              <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-start select-none">
-                <img src="/logo.png" alt="ResQNet Logo" className="h-9 min-w-[130px] max-w-none object-cover object-left" />
+      {/* Full-width Top Navbar */}
+      <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-8 flex-shrink-0 z-30 w-full">
+        {/* Brand Logo */}
+        <div className="flex items-center gap-2 select-none shrink-0">
+          <img src="/logo.png" alt="ResQNet Logo" className="h-9 w-auto object-contain" />
+        </div>
+
+        {/* Center: Search Bar */}
+        <div className="flex-1 flex justify-center px-4 max-w-xl mx-auto">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search across dashboard..."
+              className="w-full pl-10 pr-4 py-2 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:outline-none focus:border-[#237737] focus:bg-white transition text-slate-800 placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4.5 shrink-0">
+          {/* Notification Bell */}
+          <div className="relative">
+            <button
+              onClick={() => setNotifOpen(!notifOpen)}
+              className="p-2 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-xl cursor-pointer relative transition-colors"
+              title="Notifications"
+            >
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white"></span>
+            </button>
+
+            {notifOpen && (
+              <div className="absolute right-0 top-12 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                  <span className="text-sm font-extrabold text-slate-900">Admin Notifications</span>
+                  <button onClick={() => setNotifOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer p-0.5"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="divide-y divide-slate-50">
+                  {[
+                    { text: 'New Shelter registration application pending review', time: '5 min ago' },
+                    { text: 'System backup completed successfully (MongoDB)', time: '2h ago' },
+                    { text: 'User account status audit verified', time: '1d ago' },
+                  ].map((n, i) => (
+                    <div key={i} className="p-3.5 hover:bg-slate-50 transition-colors">
+                      <p className="text-xs text-slate-700 font-semibold">{n.text}</p>
+                      <p className="text-[10px] text-slate-400 mt-1">{n.time}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
 
-          {/* Navigation Links */}
-          {/* Navigation Links */}
+          {/* Profile Dropdown / Widget */}
+          <UserProfileDropdown
+            onOpenProfile={() => {
+              setActiveTab('My Profile');
+              setSubTab('My Profile');
+            }}
+            unreadCount={2}
+            onOpenNotifications={() => setNotifOpen(!notifOpen)}
+            customRole="Admin"
+          />
+        </div>
+      </header>
+
+      {/* Main Container Below Navbar */}
+      <div className="flex flex-1 overflow-hidden">
+        
+        {/* Sidebar Panel (below navbar) */}
+        <aside className="w-64 bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-y-auto shrink-0">
           <nav className="p-4 space-y-1.5">
             {[
               { name: 'Admin Dashboard', icon: TrendingUp },
               { name: 'Manage Users', icon: Users },
               { name: 'Manage Shelters', icon: Building2 },
+              { name: 'Manage Animals', icon: Dog },
               {
                 name: 'Manage Applications',
-                icon: ClipboardList,
-                badge:
-                  (shelterApplications.filter((a) => a.status === 'Pending').length +
-                    vetApplications.filter((a) => a.status === 'Pending').length +
-                    rescueTeamApplications.filter((a) => a.status === 'Pending').length +
-                    volunteerApplications.filter((a) => a.status === 'Pending').length) ||
-                  null,
+                icon: ClipboardList
               },
               { name: 'Manage Vet', icon: Stethoscope },
               { name: 'Manage Rescue Teams', icon: Truck },
@@ -652,6 +1096,9 @@ const AdminDashboard = () => {
                       loadUsers();
                     } else if (item.name === 'Manage Shelters') {
                       loadShelters();
+                    } else if (item.name === 'Manage Animals') {
+                      loadAnimals();
+                      loadCategories();
                     } else if (item.name === 'Manage Applications') {
                       loadShelterApplications();
                     }
@@ -664,9 +1111,9 @@ const AdminDashboard = () => {
                 >
                   <div className="flex items-center gap-3">
                     <IconComponent className={`w-4.5 h-4.5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                    {sidebarOpen && <span>{item.name}</span>}
+                    <span>{item.name}</span>
                   </div>
-                  {sidebarOpen && item.badge && !isActive && (
+                  {item.badge && !isActive && (
                     <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                       {item.badge}
                     </span>
@@ -675,101 +1122,18 @@ const AdminDashboard = () => {
               );
             })}
           </nav>
-        </div>
 
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-100">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-rose-600 rounded-xl text-sm font-semibold transition cursor-pointer"
-          >
-            <LogOut className="w-4.5 h-4.5 text-slate-500 hover:text-rose-500" />
-            {sidebarOpen && <span>Log Out</span>}
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        
-        {/* Top Navbar */}
-        <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-8 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-lg cursor-pointer transition-colors"
+          {/* Sidebar Footer */}
+          <div className="p-4 border-t border-slate-100">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-rose-600 rounded-xl text-sm font-semibold transition cursor-pointer"
             >
-              <Menu className="w-5 h-5" />
+              <LogOut className="w-4.5 h-4.5 text-slate-500 hover:text-rose-500" />
+              <span>Log Out</span>
             </button>
-            <h2 className="text-lg font-bold text-slate-900">
-              {subTab === 'My Profile'
-                ? 'Administrator Profile'
-                : subTab === 'Manage Shelters' || subTab === 'Shelters'
-                ? 'Manage Shelters'
-                : subTab === 'Manage Applications' || subTab === 'Shelter Applications'
-                ? 'Manage Applications'
-                : subTab === 'Manage Users' || subTab === 'User Management'
-                ? 'Manage Users'
-                : subTab === 'Manage Vet'
-                ? 'Manage Veterinary Staff'
-                : subTab === 'Manage Rescue Teams'
-                ? 'Manage Rescue Teams'
-                : subTab === 'Manage Volunteers'
-                ? 'Manage Volunteers'
-                : subTab === 'AI Module'
-                ? 'AI Distress & Breed Analysis Module'
-                : subTab === 'Smart Collar'
-                ? 'IoT Smart Collar Fleet Management'
-                : 'Admin Dashboard'}
-            </h2>
           </div>
-
-          <div className="flex items-center gap-4.5">
-            {/* Notification Bell */}
-            <div className="relative">
-              <button
-                onClick={() => setNotifOpen(!notifOpen)}
-                className="p-2 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-xl cursor-pointer relative transition-colors"
-                title="Notifications"
-              >
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-white"></span>
-              </button>
-
-              {notifOpen && (
-                <div className="absolute right-0 top-12 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-                  <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-                    <span className="text-sm font-extrabold text-slate-900">Admin Notifications</span>
-                    <button onClick={() => setNotifOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer p-0.5"><X className="w-4 h-4" /></button>
-                  </div>
-                  <div className="divide-y divide-slate-50">
-                    {[
-                      { text: 'New Shelter registration application pending review', time: '5 min ago' },
-                      { text: 'System backup completed successfully (MongoDB)', time: '2h ago' },
-                      { text: 'User account status audit verified', time: '1d ago' },
-                    ].map((n, i) => (
-                      <div key={i} className="p-3.5 hover:bg-slate-50 transition-colors">
-                        <p className="text-xs text-slate-700 font-semibold">{n.text}</p>
-                        <p className="text-[10px] text-slate-400 mt-1">{n.time}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Profile Dropdown / Widget */}
-            <UserProfileDropdown
-              onOpenProfile={() => {
-                setActiveTab('My Profile');
-                setSubTab('My Profile');
-              }}
-              unreadCount={2}
-              onOpenNotifications={() => setNotifOpen(!notifOpen)}
-              customRole="Admin"
-            />
-          </div>
-        </header>
+        </aside>
 
         {/* Dashboard Panels */}
         <main className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
@@ -782,6 +1146,8 @@ const AdminDashboard = () => {
                   ? 'Administrator Profile'
                   : subTab === 'Manage Shelters' || subTab === 'Shelters'
                   ? 'Manage Shelters'
+                  : subTab === 'Manage Animals'
+                  ? 'Manage Animals & Categories'
                   : subTab === 'Manage Applications' || subTab === 'Shelter Applications'
                   ? 'Manage Applications'
                   : subTab === 'Manage Users' || subTab === 'User Management'
@@ -803,6 +1169,8 @@ const AdminDashboard = () => {
                   ? 'System administrator credentials and platform superuser settings'
                   : subTab === 'Manage Shelters' || subTab === 'Shelters'
                   ? 'Manage registered partner shelters, monitor cage occupancy, and assign unique IDs (SH-0001, SH-0002...)'
+                  : subTab === 'Manage Animals'
+                  ? 'View registered rescue animals and configure animal category classifications'
                   : subTab === 'Manage Applications' || subTab === 'Shelter Applications'
                   ? 'Review, verify, and approve registration applications for Shelters, Veterinary Staff, Rescue Teams, and Volunteers'
                   : subTab === 'Manage Users' || subTab === 'User Management'
@@ -822,19 +1190,31 @@ const AdminDashboard = () => {
             </div>
 
             <div className="flex items-center gap-3">
-              {subTab === 'Manage Shelters' || subTab === 'Shelters' ? (
+              {subTab === 'Manage Animals' || activeTab === 'Manage Animals' ? (
+                <>
+                  <button
+                    onClick={() => {
+                      loadAnimals();
+                      loadCategories();
+                    }}
+                    className="px-4.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  >
+                    <RefreshCw className={`w-4 h-4 text-slate-400 ${animalsLoading || categoriesLoading ? 'animate-spin' : ''}`} /> Refresh
+                  </button>
+                  <button
+                    onClick={handleOpenAddCategoryModal}
+                    className="px-4.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  >
+                    <Tag className="w-4 h-4 text-[#237737]" /> + Add Category
+                  </button>
+                </>
+              ) : subTab === 'Manage Shelters' || subTab === 'Shelters' ? (
                 <>
                   <button
                     onClick={loadShelters}
                     className="px-4.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                   >
                     <RefreshCw className="w-4 h-4 text-slate-400" /> Refresh
-                  </button>
-                  <button
-                    onClick={() => setShowAddShelterModal(true)}
-                    className="px-4.5 py-2.5 bg-[#237737] hover:bg-[#1d632e] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow shadow-[#237737]/10"
-                  >
-                    <Plus className="w-4 h-4" /> Add Shelter
                   </button>
                 </>
               ) : subTab === 'Manage Applications' || subTab === 'Shelter Applications' ? (
@@ -852,12 +1232,6 @@ const AdminDashboard = () => {
                   >
                     <RefreshCw className={`w-4 h-4 text-slate-400 ${usersLoading ? 'animate-spin' : ''}`} /> Refresh
                   </button>
-                  <button 
-                    onClick={() => setShowAddUserModal(true)}
-                    className="px-4.5 py-2.5 bg-[#237737] hover:bg-[#1d632e] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow shadow-[#237737]/10"
-                  >
-                    <Plus className="w-4 h-4" /> Add User
-                  </button>
                 </>
               ) : subTab === 'Manage Vet' ? (
                 <>
@@ -866,15 +1240,6 @@ const AdminDashboard = () => {
                     className="px-4.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                   >
                     <RefreshCw className={`w-4 h-4 text-slate-400 ${usersLoading ? 'animate-spin' : ''}`} /> Refresh
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setNewUserRole('Veterinary Staff');
-                      setShowAddUserModal(true);
-                    }}
-                    className="px-4.5 py-2.5 bg-[#237737] hover:bg-[#1d632e] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow shadow-[#237737]/10"
-                  >
-                    <Plus className="w-4 h-4" /> Add Vet Account
                   </button>
                 </>
               ) : subTab === 'Manage Rescue Teams' ? (
@@ -885,15 +1250,6 @@ const AdminDashboard = () => {
                   >
                     <RefreshCw className={`w-4 h-4 text-slate-400 ${usersLoading ? 'animate-spin' : ''}`} /> Refresh
                   </button>
-                  <button 
-                    onClick={() => {
-                      setNewUserRole('Rescue Team');
-                      setShowAddUserModal(true);
-                    }}
-                    className="px-4.5 py-2.5 bg-[#237737] hover:bg-[#1d632e] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow shadow-[#237737]/10"
-                  >
-                    <Plus className="w-4 h-4" /> Register Rescue Team
-                  </button>
                 </>
               ) : subTab === 'Manage Volunteers' ? (
                 <>
@@ -902,15 +1258,6 @@ const AdminDashboard = () => {
                     className="px-4.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
                   >
                     <RefreshCw className={`w-4 h-4 text-slate-400 ${usersLoading ? 'animate-spin' : ''}`} /> Refresh
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setNewUserRole('Public User');
-                      setShowAddUserModal(true);
-                    }}
-                    className="px-4.5 py-2.5 bg-[#237737] hover:bg-[#1d632e] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow shadow-[#237737]/10"
-                  >
-                    <Plus className="w-4 h-4" /> Add Volunteer
                   </button>
                 </>
               ) : subTab === 'AI Module' || subTab === 'Smart Collar' ? (
@@ -922,12 +1269,6 @@ const AdminDashboard = () => {
                 <>
                   <button className="px-4.5 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm">
                     <FileText className="w-4 h-4 text-slate-400" /> Export Report
-                  </button>
-                  <button 
-                    onClick={() => setShowAddUserModal(true)}
-                    className="px-4.5 py-2.5 bg-[#237737] hover:bg-[#1d632e] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow shadow-[#237737]/10"
-                  >
-                    <Plus className="w-4 h-4" /> Add User
                   </button>
                 </>
               )}
@@ -1235,14 +1576,8 @@ const AdminDashboard = () => {
                     </div>
                     <h3 className="text-base font-extrabold text-slate-800">No Users Registered Yet</h3>
                     <p className="text-xs text-slate-400 font-semibold max-w-sm mx-auto">
-                      Registered users will automatically appear here. You can also directly create an account using the "+ Add User" button.
+                      Registered users will automatically appear here.
                     </p>
-                    <button
-                      onClick={() => setShowAddUserModal(true)}
-                      className="mt-2 px-5 py-2.5 bg-[#237737] hover:bg-[#1d632e] text-white text-xs font-bold rounded-xl shadow-sm transition cursor-pointer"
-                    >
-                      + Add New User
-                    </button>
                   </div>
                 )}
 
@@ -1255,7 +1590,6 @@ const AdminDashboard = () => {
                           <th className="pb-3.5 pl-4">User Details</th>
                           <th className="pb-3.5">Role</th>
                           <th className="pb-3.5">City / Location</th>
-                          <th className="pb-3.5">Verification</th>
                           <th className="pb-3.5">Status</th>
                           <th className="pb-3.5">Joined</th>
                           <th className="pb-3.5 pr-4 text-right">Actions</th>
@@ -1357,32 +1691,6 @@ const AdminDashboard = () => {
                                   </div>
                                 </td>
 
-                                {/* Verification Column */}
-                                <td className="py-4">
-                                  <div className="flex flex-col gap-1">
-                                    <span
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                                        u.isEmailVerified
-                                          ? 'bg-emerald-50 text-emerald-700'
-                                          : 'bg-slate-100 text-slate-400'
-                                      }`}
-                                    >
-                                      <Check className={`w-3 h-3 ${u.isEmailVerified ? 'text-emerald-600' : 'text-slate-300'}`} />
-                                      Email
-                                    </span>
-                                    <span
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                                        u.isPhoneVerified
-                                          ? 'bg-emerald-50 text-emerald-700'
-                                          : 'bg-slate-100 text-slate-400'
-                                      }`}
-                                    >
-                                      <Check className={`w-3 h-3 ${u.isPhoneVerified ? 'text-emerald-600' : 'text-slate-300'}`} />
-                                      Phone
-                                    </span>
-                                  </div>
-                                </td>
-
                                 {/* Status Column */}
                                 <td className="py-4">
                                   <span
@@ -1437,16 +1745,6 @@ const AdminDashboard = () => {
                                         'Activate'
                                       )}
                                     </button>
-
-                                    {/* Delete User */}
-                                    <button
-                                      onClick={() => handleDeleteUser(u)}
-                                      disabled={userActionLoading[userId]}
-                                      title="Delete Account"
-                                      className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition cursor-pointer disabled:opacity-50"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
                                   </div>
                                 </td>
                               </tr>
@@ -1461,7 +1759,7 @@ const AdminDashboard = () => {
             </div>
           )}
 
-          {/* Sub-Tab 3: Shelters Management (Real Dynamic Shelter Schema & S01, S02 IDs) */}
+          {/* Sub-Tab 3: Shelters Management — Table View */}
           {(subTab === 'Manage Shelters' || subTab === 'Shelters') && (
             <div className="space-y-6">
               
@@ -1474,31 +1772,29 @@ const AdminDashboard = () => {
                 </div>
 
                 <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Open Facilities</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Accounts</div>
+                  <div className="text-2xl font-black text-[#237737] mt-1">
+                    {sheltersList.filter(s => s.status !== 'Inactive').length}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-400 mt-0.5">
+                    {sheltersList.filter(s => s.status === 'Inactive').length} inactive
+                  </div>
+                </div>
+
+                <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Open for Intake</div>
                   <div className="text-2xl font-black text-emerald-600 mt-1">
-                    {sheltersList.filter(s => s.status === 'OPEN').length}
+                    {sheltersList.filter(s => (s.currentStatus || s.status) === 'OPEN').length}
                   </div>
-                  <div className="text-[10px] font-bold text-slate-400 mt-0.5">Available for intake</div>
+                  <div className="text-[10px] font-bold text-emerald-600 mt-0.5">Available for rescue</div>
                 </div>
 
                 <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Full / Maxed</div>
-                  <div className="text-2xl font-black text-rose-600 mt-1">
-                    {sheltersList.filter(s => s.status === 'FULL').length}
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Full / Maintenance</div>
+                  <div className="text-2xl font-black text-amber-600 mt-1">
+                    {sheltersList.filter(s => ['FULL', 'UNDER_MAINTENANCE'].includes(s.currentStatus || s.status)).length}
                   </div>
-                  <div className="text-[10px] font-bold text-slate-400 mt-0.5">At 100% capacity</div>
-                </div>
-
-                <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Cage Spaces</div>
-                  <div className="text-2xl font-black text-slate-900 mt-1">
-                    {sheltersList.reduce((acc, s) => acc + (s.occupiedCages || 0), 0)} / {sheltersList.reduce((acc, s) => acc + (s.totalCages || 0), 0)}
-                  </div>
-                  <div className="text-[10px] font-bold text-blue-600 mt-0.5">
-                    {sheltersList.reduce((acc, s) => acc + (s.totalCages || 0), 0) > 0
-                      ? `${Math.round((sheltersList.reduce((acc, s) => acc + (s.occupiedCages || 0), 0) / sheltersList.reduce((acc, s) => acc + (s.totalCages || 0), 0)) * 100)}% occupied`
-                      : '0% occupied'}
-                  </div>
+                  <div className="text-[10px] font-bold text-slate-400 mt-0.5">Limited capacity</div>
                 </div>
               </div>
 
@@ -1510,14 +1806,14 @@ const AdminDashboard = () => {
                       type="text"
                       value={shelterSearchQuery}
                       onChange={(e) => setShelterSearchQuery(e.target.value)}
-                      placeholder="Search shelter by name, S01, or email…"
+                      placeholder="Search shelter by name, SH-0001, or email…"
                       className="w-full pl-10 pr-4 py-2 bg-[#F8FAF9] border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:border-[#237737] transition"
                     />
                     <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
                   </div>
 
                   <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto py-1">
-                    {['All', 'OPEN', 'FULL', 'UNDER_MAINTENANCE', 'CLOSED'].map((st) => (
+                    {['All', 'Active', 'Inactive', 'OPEN', 'FULL', 'UNDER_MAINTENANCE', 'CLOSED'].map((st) => (
                       <button
                         key={st}
                         onClick={() => setShelterFilterStatus(st)}
@@ -1534,7 +1830,23 @@ const AdminDashboard = () => {
                 </div>
 
                 <div className="text-xs font-extrabold text-slate-400">
-                  {sheltersList.length} total registered
+                  {
+                    sheltersList.filter((s) => {
+                      const q = shelterSearchQuery.toLowerCase().trim();
+                      const matchSearch =
+                        !q ||
+                        s.shelterName?.toLowerCase().includes(q) ||
+                        s.shelterNumber?.toLowerCase().includes(q) ||
+                        s.shelterEmail?.toLowerCase().includes(q) ||
+                        s.userId?.fullName?.toLowerCase().includes(q);
+                      const matchStatus =
+                        shelterFilterStatus === 'All' ||
+                        s.status === shelterFilterStatus ||
+                        s.currentStatus === shelterFilterStatus;
+                      return matchSearch && matchStatus;
+                    }).length
+                  }{' '}
+                  of {sheltersList.length} shelters
                 </div>
               </div>
 
@@ -1555,661 +1867,556 @@ const AdminDashboard = () => {
                   <p className="text-xs text-slate-400 font-semibold max-w-sm mx-auto">
                     Approve user shelter registration applications or directly add a shelter using the "+ Add Shelter" button.
                   </p>
-                  <button
-                    onClick={() => setShowAddShelterModal(true)}
-                    className="mt-2 px-5 py-2.5 bg-[#237737] hover:bg-[#1d632e] text-white text-xs font-bold rounded-xl shadow-sm transition cursor-pointer"
-                  >
-                    + Add Shelter Now
-                  </button>
                 </div>
               )}
 
-              {/* Shelters Grid / Cards */}
+              {/* Shelters Table */}
               {!sheltersLoading && sheltersList.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                  {sheltersList
-                    .filter((s) => {
-                      const q = shelterSearchQuery.toLowerCase();
-                      const matchSearch =
-                        !q ||
-                        s.shelterName?.toLowerCase().includes(q) ||
-                        s.shelterNumber?.toLowerCase().includes(q) ||
-                        s.shelterEmail?.toLowerCase().includes(q);
-                      const matchStatus =
-                        shelterFilterStatus === 'All' || s.status === shelterFilterStatus;
-                      return matchSearch && matchStatus;
-                    })
-                    .map((shelter) => {
-                      const occupancyRate =
-                        shelter.totalCages > 0
-                          ? Math.round((shelter.occupiedCages / shelter.totalCages) * 100)
-                          : 0;
+                <div className="bg-white border border-slate-100/90 rounded-3xl p-6 shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-[11px] font-black uppercase text-slate-400 tracking-wider">
+                          <th className="pb-3.5 pl-4">Shelter Details</th>
+                          <th className="pb-3.5">Contact</th>
+                          <th className="pb-3.5">Location</th>
+                          <th className="pb-3.5">Operational Status</th>
+                          <th className="pb-3.5">Status</th>
+                          <th className="pb-3.5 pr-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
+                        {sheltersList
+                          .filter((s) => {
+                            const q = shelterSearchQuery.toLowerCase().trim();
+                            const matchSearch =
+                              !q ||
+                              s.shelterName?.toLowerCase().includes(q) ||
+                              s.shelterNumber?.toLowerCase().includes(q) ||
+                              s.shelterEmail?.toLowerCase().includes(q) ||
+                              s.userId?.fullName?.toLowerCase().includes(q);
+                            const matchStatus =
+                              shelterFilterStatus === 'All' ||
+                              s.status === shelterFilterStatus ||
+                              s.currentStatus === shelterFilterStatus;
+                            return matchSearch && matchStatus;
+                          })
+                          .map((shelter) => {
+                            const operationalStatus = shelter.currentStatus || shelter.status || 'OPEN';
+                            const operationalClass =
+                              operationalStatus === 'OPEN'
+                                ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200/60'
+                                : operationalStatus === 'FULL'
+                                ? 'bg-rose-500/10 text-rose-700 border-rose-200/60'
+                                : operationalStatus === 'UNDER_MAINTENANCE'
+                                ? 'bg-amber-500/10 text-amber-700 border-amber-200/60'
+                                : 'bg-slate-100 text-slate-600 border-slate-200/60';
 
-                      return (
-                        <div
-                          key={shelter._id}
-                          className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all space-y-5 flex flex-col justify-between"
-                        >
-                          <div>
-                            {/* Header row: shelterNumber badge, status badge */}
-                            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
-                              <div className="flex items-center gap-2.5">
-                                <span className="px-3 py-1 bg-[#237737]/10 border border-[#237737]/30 text-[#237737] font-black text-sm rounded-xl">
-                                  {shelter.shelterNumber || 'SH-0001'}
-                                </span>
-                              </div>
+                            const isAccountActive = shelter.status !== 'Inactive';
 
-                              <div className="flex items-center gap-2">
-                                <select
-                                  value={shelter.status}
-                                  onChange={(e) => handleUpdateShelterStatus(shelter._id, e.target.value)}
-                                  className={`px-3 py-1 text-xs font-extrabold rounded-xl border transition cursor-pointer ${
-                                    shelter.status === 'OPEN'
-                                      ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200'
-                                      : shelter.status === 'FULL'
-                                      ? 'bg-rose-500/10 text-rose-700 border-rose-200'
-                                      : shelter.status === 'UNDER_MAINTENANCE'
-                                      ? 'bg-amber-500/10 text-amber-700 border-amber-200'
-                                      : 'bg-slate-100 text-slate-600 border-slate-200'
-                                  }`}
-                                >
-                                  <option value="OPEN">● OPEN</option>
-                                  <option value="FULL">● FULL</option>
-                                  <option value="UNDER_MAINTENANCE">● UNDER MAINTENANCE</option>
-                                  <option value="CLOSED">● CLOSED</option>
-                                </select>
+                            return (
+                              <tr key={shelter._id} className="hover:bg-slate-50/70 transition">
+                                {/* Shelter Details Column */}
+                                <td className="py-4 pl-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-[#237737]/10 text-[#237737] font-black text-sm flex items-center justify-center shrink-0">
+                                      <Building2 className="w-5 h-5" />
+                                    </div>
+                                    <div className="space-y-0.5">
+                                      <div className="flex items-center gap-2">
+                                        <h4 className="font-extrabold text-slate-900 text-sm">{shelter.shelterName}</h4>
+                                        <span className="px-2 py-0.5 bg-[#237737]/10 border border-[#237737]/30 text-[#237737] text-[10px] font-black rounded-lg">
+                                          {shelter.shelterNumber || 'SH-0001'}
+                                        </span>
+                                      </div>
+                                      <div className="text-[11px] text-slate-400 font-semibold">
+                                        {shelter.userId?.fullName ? `Manager: ${shelter.userId.fullName}` : 'System Admin'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
 
-                                <button
-                                  onClick={() => handleDeleteShelter(shelter._id)}
-                                  title="Delete Shelter"
-                                  className="p-1.5 text-slate-350 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </div>
+                                {/* Contact Column */}
+                                <td className="py-4">
+                                  <div className="space-y-0.5">
+                                    <div className="flex items-center gap-1.5 text-slate-700">
+                                      <Mail className="w-3 h-3 text-slate-400" />
+                                      <span className="truncate max-w-[160px]">{shelter.shelterEmail}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-slate-400">
+                                      <Phone className="w-3 h-3" />
+                                      <span>+91 {shelter.shelterPhoneNumber}</span>
+                                    </div>
+                                  </div>
+                                </td>
 
-                            {/* Main Info */}
-                            <div className="mt-4 space-y-1">
-                              <h3 className="font-black text-lg text-slate-900 flex items-center gap-2">
-                                <Building2 className="w-5 h-5 text-[#237737] shrink-0" />
-                                {shelter.shelterName}
-                              </h3>
-                              <p className="text-xs text-slate-400 font-semibold pl-7">
-                                {shelter.userId?.fullName ? `Manager: ${shelter.userId.fullName} (${shelter.userId.email})` : 'Managed directly by System Admin'}
-                              </p>
-                            </div>
+                                {/* Location Column */}
+                                <td className="py-4">
+                                  <div className="flex items-center gap-1.5 text-slate-700 max-w-[130px]">
+                                    <MapPin className="w-3.5 h-3.5 text-[#237737] shrink-0" />
+                                    <span className="truncate">{shelter.latitude?.toFixed(4)}, {shelter.longitude?.toFixed(4)}</span>
+                                  </div>
+                                </td>
 
-                            {/* Contact & Location Grid */}
-                            <div className="grid grid-cols-2 gap-2.5 mt-4 text-xs font-semibold">
-                              <div className="p-3 bg-[#F8FAF9] rounded-xl flex items-center gap-2 text-slate-700">
-                                <Phone className="w-3.5 h-3.5 text-[#237737] shrink-0" />
-                                <span className="truncate">+91 {shelter.shelterPhoneNumber}</span>
-                              </div>
-                              <div className="p-3 bg-[#F8FAF9] rounded-xl flex items-center gap-2 text-slate-700">
-                                <MapPin className="w-3.5 h-3.5 text-[#237737] shrink-0" />
-                                <span className="truncate">{shelter.latitude?.toFixed(4)}, {shelter.longitude?.toFixed(4)}</span>
-                              </div>
-                            </div>
+                                {/* Operational Status Column */}
+                                <td className="py-4">
+                                  <select
+                                    value={operationalStatus}
+                                    onChange={(e) => handleUpdateShelterCurrentStatus(shelter._id, e.target.value)}
+                                    className={`px-2.5 py-1 text-[10px] font-extrabold rounded-xl border transition cursor-pointer ${operationalClass}`}
+                                  >
+                                    <option value="OPEN">● OPEN</option>
+                                    <option value="FULL">● FULL</option>
+                                    <option value="UNDER_MAINTENANCE">● MAINTENANCE</option>
+                                    <option value="CLOSED">● CLOSED</option>
+                                  </select>
+                                </td>
 
-                            {/* Capacity Visual Progress Bar */}
-                            <div className="mt-4 p-4 bg-[#F8FAF9] rounded-2xl border border-slate-100 space-y-2">
-                              <div className="flex items-center justify-between text-xs font-bold text-slate-600">
-                                <span className="flex items-center gap-1.5">
-                                  <Shield className="w-3.5 h-3.5 text-slate-400" />
-                                  Cage Occupancy: {shelter.occupiedCages} / {shelter.totalCages}
-                                </span>
-                                <span className={occupancyRate >= 90 ? 'text-rose-600' : 'text-slate-700'}>
-                                  {occupancyRate}% ({shelter.totalCages - shelter.occupiedCages} vacant)
-                                </span>
-                              </div>
+                                {/* Account Status Column */}
+                                <td className="py-4">
+                                  <span
+                                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
+                                      isAccountActive
+                                        ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200/50'
+                                        : 'bg-rose-500/10 text-rose-700 border-rose-200/50'
+                                    }`}
+                                  >
+                                    {isAccountActive ? 'Active' : 'Inactive'}
+                                  </span>
+                                </td>
 
-                              <div className="h-2 bg-slate-200/80 rounded-full w-full overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all ${
-                                    occupancyRate >= 90
-                                      ? 'bg-rose-500'
-                                      : occupancyRate >= 70
-                                      ? 'bg-amber-500'
-                                      : 'bg-[#237737]'
-                                  }`}
-                                  style={{ width: `${Math.min(occupancyRate, 100)}%` }}
-                                />
-                              </div>
+                                {/* Actions Column */}
+                                <td className="py-4 pr-4 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    {/* Preview Modal Button */}
+                                    <button
+                                      onClick={() => {
+                                        setSelectedShelterForModal(shelter);
+                                        setShowShelterDetailsModal(true);
+                                      }}
+                                      title="View Shelter Details"
+                                      className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-lg transition cursor-pointer"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </button>
 
-                              <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 pt-0.5">
-                                <span>Staff: {shelter.totalStaffs} members</span>
-                                <span>Email: {shelter.shelterEmail}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Footer Tag */}
-                          <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[10px] font-bold text-slate-400">
-                            <span>
-                              {shelter.shelterApplicationId
-                                ? `Created from Application #${shelter.shelterApplicationId}`
-                                : 'Created directly by Admin'}
-                            </span>
-                            <span>
-                              Added {new Date(shelter.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                                    {/* Deactivate / Activate Button */}
+                                    <button
+                                      onClick={() => handleToggleShelterStatus(shelter)}
+                                      disabled={shelterActionLoading[shelter._id]}
+                                      title={isAccountActive ? 'Deactivate Shelter' : 'Activate Shelter'}
+                                      className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition cursor-pointer disabled:opacity-50 ${
+                                        isAccountActive
+                                          ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200/50'
+                                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200/50'
+                                      }`}
+                                    >
+                                      {shelterActionLoading[shelter._id] ? (
+                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                      ) : isAccountActive ? (
+                                        'Deactivate'
+                                      ) : (
+                                        'Activate'
+                                      )}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
 
             </div>
           )}
 
-          {/* Sub-Tab 4: Manage Applications (Shelter, Vet, Rescue, Volunteer) */}
+          {/* Sub-Tab 4: Manage Applications — Unified Table with Application Type filter */}
           {(subTab === 'Manage Applications' || subTab === 'Shelter Applications') && (
             <div className="space-y-6">
 
-              {/* Application Category Selector Pills */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {[
-                  {
-                    id: 'Shelter',
-                    label: '🏢 Shelter Registrations',
-                    count: shelterApplications.length,
-                    pending: shelterApplications.filter((a) => a.status === 'Pending').length,
-                  },
-                  {
-                    id: 'Vet',
-                    label: '🩺 Vet Staff Applications',
-                    count: vetApplications.length,
-                    pending: vetApplications.filter((a) => a.status === 'Pending').length,
-                  },
-                  {
-                    id: 'Rescue',
-                    label: '🚑 Rescue Team Applications',
-                    count: rescueTeamApplications.length,
-                    pending: rescueTeamApplications.filter((a) => a.status === 'Pending').length,
-                  },
-                  {
-                    id: 'Volunteer',
-                    label: '🤝 Volunteer Applications',
-                    count: volunteerApplications.length,
-                    pending: volunteerApplications.filter((a) => a.status === 'Pending').length,
-                  },
-                ].map((cat) => {
-                  const isCatActive = applicationsCategoryTab === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => setApplicationsCategoryTab(cat.id)}
-                      className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-2 ${
-                        isCatActive
-                          ? 'bg-[#237737] text-white shadow-md shadow-[#237737]/15'
-                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-xs'
-                      }`}
-                    >
-                      <span>{cat.label}</span>
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                          isCatActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {cat.count}
-                      </span>
-                      {cat.pending > 0 && (
-                        <span className="px-1.5 py-0.2 bg-amber-400 text-amber-950 text-[10px] font-black rounded-full">
-                          {cat.pending} pending
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+              {/* ── Summary Stats ── */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Applications</div>
+                  <div className="text-2xl font-black text-slate-900 mt-1">
+                    {shelterApplications.length + vetApplications.length + rescueTeamApplications.length + volunteerApplications.length}
+                  </div>
+                  <div className="text-[10px] font-bold text-blue-600 mt-0.5">All types combined</div>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending Review</div>
+                  <div className="text-2xl font-black text-amber-600 mt-1">
+                    {[...shelterApplications, ...vetApplications, ...rescueTeamApplications, ...volunteerApplications].filter(a => a.status === 'Pending').length}
+                  </div>
+                  <div className="text-[10px] font-bold text-amber-600 mt-0.5">Awaiting site visit / review</div>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Site Visits Active</div>
+                  <div className="text-2xl font-black text-blue-600 mt-1">
+                    {shelterApplications.filter(a => a.status === 'Site Visit').length}
+                  </div>
+                  <div className="text-[10px] font-bold text-blue-600 mt-0.5">Valuation period scheduled</div>
+                </div>
+                <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Processed</div>
+                  <div className="text-2xl font-black text-emerald-600 mt-1">
+                    {[...shelterApplications, ...vetApplications, ...rescueTeamApplications, ...volunteerApplications].filter(a => a.status === 'Approved').length}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-400 mt-0.5">
+                    {[...shelterApplications, ...vetApplications, ...rescueTeamApplications, ...volunteerApplications].filter(a => a.status === 'Rejected').length} rejected
+                  </div>
+                </div>
               </div>
 
-              {/* ═══ CATEGORY 1: SHELTER REGISTRATION APPLICATIONS ═══ */}
-              {applicationsCategoryTab === 'Shelter' && (
-                <div className="space-y-5">
-                  {/* Search & Status Filter Bar for Shelter Applications */}
-                  <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-                      <div className="relative w-full sm:w-72">
-                        <input
-                          type="text"
-                          value={shelterAppSearchQuery}
-                          onChange={(e) => setShelterAppSearchQuery(e.target.value)}
-                          placeholder="Search by shelter name, email, reg#…"
-                          className="w-full pl-10 pr-4 py-2 bg-[#F8FAF9] border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:border-[#237737] transition"
-                        />
-                        <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
-                      </div>
+              {/* ── Filter & Search Bar ── */}
+              <div className="bg-white border border-slate-100/90 rounded-3xl p-6 shadow-sm space-y-6">
+                <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+                  <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                    {/* Search */}
+                    <div className="relative w-full sm:w-72">
+                      <input
+                        type="text"
+                        value={shelterAppSearchQuery}
+                        onChange={(e) => setShelterAppSearchQuery(e.target.value)}
+                        placeholder="Search by name, email, ID…"
+                        className="w-full pl-10 pr-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#237737] text-xs font-semibold transition"
+                      />
+                      <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                    </div>
 
-                      <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto py-1">
-                        {['All', 'Pending', 'Approved', 'Rejected'].map((st) => (
+                    {/* Application Type Dropdown */}
+                    <select
+                      value={applicationsCategoryTab}
+                      onChange={(e) => setApplicationsCategoryTab(e.target.value)}
+                      className="px-3.5 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-[#237737] cursor-pointer"
+                    >
+                      <option value="All">All Application Types</option>
+                      <option value="Shelter">🏢 Shelter Registration</option>
+                      <option value="Vet">🩺 Vet Staff</option>
+                      <option value="Rescue">🚑 Rescue Team</option>
+                      <option value="Volunteer">🤝 Volunteer</option>
+                    </select>
+
+                    {/* Status Filter Pills */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+                      {['All', 'Pending', 'Site Visit', 'Approved', 'Rejected'].map((st) => {
+                        const pendingCount = [...shelterApplications, ...vetApplications, ...rescueTeamApplications, ...volunteerApplications].filter(a => a.status === 'Pending').length;
+                        const siteVisitCount = shelterApplications.filter(a => a.status === 'Site Visit').length;
+
+                        return (
                           <button
                             key={st}
                             onClick={() => setShelterAppFilterStatus(st)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                               shelterAppFilterStatus === st
                                 ? 'bg-[#237737] text-white shadow-xs'
                                 : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
                             }`}
                           >
-                            {st === 'All' ? 'All Applications' : st}
-                            {st === 'Pending' && shelterApplications.filter(a => a.status === 'Pending').length > 0 && (
-                              <span className="ml-1.5 px-1.5 py-0.2 bg-amber-400 text-amber-950 text-[10px] rounded-full font-black">
-                                {shelterApplications.filter(a => a.status === 'Pending').length}
+                            <span>{st === 'All' ? 'All Statuses' : st}</span>
+                            {st === 'Pending' && pendingCount > 0 && (
+                              <span className="px-1.5 py-0.2 bg-amber-400 text-amber-950 text-[10px] rounded-full font-black">
+                                {pendingCount}
+                              </span>
+                            )}
+                            {st === 'Site Visit' && siteVisitCount > 0 && (
+                              <span className="px-1.5 py-0.2 bg-blue-400 text-blue-950 text-[10px] rounded-full font-black">
+                                {siteVisitCount}
                               </span>
                             )}
                           </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="text-xs font-extrabold text-slate-400">
-                      {shelterApplications.length} shelter applications
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {shelterAppsLoading && (
-                    <div className="p-6 bg-white border border-slate-100 rounded-2xl text-slate-400 text-sm font-semibold animate-pulse flex items-center gap-2">
-                      <Clock className="w-4 h-4" /> Loading shelter applications…
-                    </div>
-                  )}
+                  <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-end">
+                    <span className="text-xs text-slate-400 font-extrabold">
+                      {(() => {
+                        const all = [
+                          ...shelterApplications.map(a => ({ ...a, _appType: 'Shelter', _name: a.shelterName, _contact: a.applicantId?.email || a.userId?.email || a.shelterEmail, _id2: a.shelterApplicationId })),
+                          ...vetApplications.map(a => ({ ...a, _appType: 'Vet', _name: a.applicantName, _contact: a.email, _id2: a.id })),
+                          ...rescueTeamApplications.map(a => ({ ...a, _appType: 'Rescue', _name: a.teamName, _contact: a.email, _id2: a.id })),
+                          ...volunteerApplications.map(a => ({ ...a, _appType: 'Volunteer', _name: a.volunteerName, _contact: a.email, _id2: a.id })),
+                        ];
+                        const q = shelterAppSearchQuery.toLowerCase().trim();
+                        return all.filter(a => {
+                          const matchType = applicationsCategoryTab === 'All' || a._appType === applicationsCategoryTab;
+                          const matchStatus = shelterAppFilterStatus === 'All' || a.status === shelterAppFilterStatus;
+                          const matchSearch = !q || a._name?.toLowerCase().includes(q) || a._contact?.toLowerCase().includes(q) || a._id2?.toLowerCase().includes(q);
+                          return matchType && matchStatus && matchSearch;
+                        }).length;
+                      })()} of {shelterApplications.length + vetApplications.length + rescueTeamApplications.length + volunteerApplications.length} applications
+                    </span>
+                  </div>
+                </div>
 
-                  {!shelterAppsLoading && shelterApplications.length === 0 && (
-                    <div className="p-10 bg-white border border-slate-100 rounded-2xl text-center">
-                      <div className="p-4 bg-slate-100 rounded-2xl w-fit mx-auto mb-3">
-                        <ClipboardList className="w-7 h-7 text-slate-400" />
+                {/* Loading */}
+                {shelterAppsLoading && (
+                  <div className="p-12 bg-[#F8FAF9] border border-slate-100 rounded-2xl text-center text-slate-400 text-sm font-semibold animate-pulse flex items-center justify-center gap-2.5">
+                    <RefreshCw className="w-5 h-5 animate-spin text-[#237737]" />
+                    <span>Loading applications from database…</span>
+                  </div>
+                )}
+
+                {/* Unified Applications Table */}
+                {!shelterAppsLoading && (() => {
+                  const allApps = [
+                    ...shelterApplications.map(a => ({ ...a, _appType: 'Shelter', _name: a.shelterName, _contact: a.applicantId?.email || a.userId?.email || a.shelterEmail, _subLabel: `Reg: ${a.registrationNumber || 'N/A'}`, _id2: a.shelterApplicationId, _submittedAt: a.createdAt })),
+                    ...vetApplications.map(a => ({ ...a, _appType: 'Vet', _name: a.applicantName, _contact: a.email, _subLabel: `${a.qualification} • ${a.experienceYears}yr exp`, _id2: a.id, _submittedAt: a.submittedAt })),
+                    ...rescueTeamApplications.map(a => ({ ...a, _appType: 'Rescue', _name: a.teamName, _contact: a.email, _subLabel: `Lead: ${a.teamLead}`, _id2: a.id, _submittedAt: a.submittedAt })),
+                    ...volunteerApplications.map(a => ({ ...a, _appType: 'Volunteer', _name: a.volunteerName, _contact: a.email, _subLabel: `Availability: ${a.availability}`, _id2: a.id, _submittedAt: a.submittedAt })),
+                  ];
+                  const q = shelterAppSearchQuery.toLowerCase().trim();
+                  const filtered = allApps.filter(a => {
+                    const matchType = applicationsCategoryTab === 'All' || a._appType === applicationsCategoryTab;
+                    const matchStatus = shelterAppFilterStatus === 'All' || a.status === shelterAppFilterStatus;
+                    const matchSearch = !q || a._name?.toLowerCase().includes(q) || a._contact?.toLowerCase().includes(q) || a._id2?.toLowerCase().includes(q);
+                    return matchType && matchStatus && matchSearch;
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="p-10 bg-[#F8FAF9] border border-slate-100 rounded-2xl text-center">
+                        <div className="p-4 bg-slate-100 rounded-2xl w-fit mx-auto mb-3">
+                          <ClipboardList className="w-7 h-7 text-slate-400" />
+                        </div>
+                        <p className="text-slate-500 font-semibold text-sm">No applications found.</p>
+                        <p className="text-slate-400 font-medium text-xs mt-1">Try adjusting the filters or search query.</p>
                       </div>
-                      <p className="text-slate-500 font-semibold text-sm">No shelter applications yet.</p>
-                      <p className="text-slate-400 font-medium text-xs mt-1">Applications submitted by users will appear here.</p>
-                    </div>
-                  )}
+                    );
+                  }
 
-                  {!shelterAppsLoading && shelterApplications.length > 0 && (
-                    <div className="space-y-4">
-                      {shelterApplications
-                        .filter((app) => {
-                          const q = shelterAppSearchQuery.toLowerCase().trim();
-                          const matchSearch =
-                            !q ||
-                            app.shelterName?.toLowerCase().includes(q) ||
-                            app.shelterEmail?.toLowerCase().includes(q) ||
-                            app.registrationNumber?.toLowerCase().includes(q) ||
-                            app.shelterApplicationId?.toLowerCase().includes(q) ||
-                            app.applicantId?.fullName?.toLowerCase().includes(q) ||
-                            app.userId?.fullName?.toLowerCase().includes(q);
-                          const matchStatus =
-                            shelterAppFilterStatus === 'All' || app.status === shelterAppFilterStatus;
-                          return matchSearch && matchStatus;
-                        })
-                        .map((app) => (
-                        <div key={app._id} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
-                          {/* Application Header */}
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2.5 bg-[#237737]/10 text-[#237737] rounded-xl">
-                                <Building2 className="w-5 h-5" />
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-extrabold text-slate-900 text-sm">{app.shelterName}</h4>
-                                  <span className="text-[10px] text-slate-400 font-bold">#{app.shelterApplicationId}</span>
-                                  {app.shelter && (
-                                    <span className="px-2 py-0.5 bg-[#237737]/10 border border-[#237737]/30 text-[#237737] text-[10px] font-black rounded-lg">
-                                      {app.shelter.shelterNumber}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                                  Reg ({app.registrationType || 'STATE_TRUST_SOCIETY'}): {app.registrationNumber}
-                                </p>
-                              </div>
-                            </div>
-                            <span className={`px-3 py-1 text-[10px] font-black rounded-full border ${
+                  const typeConfig = {
+                    Shelter:   { color: 'bg-[#237737]/10 text-[#237737] border-[#237737]/30', icon: <Building2 className="w-3.5 h-3.5" />, label: '🏢 Shelter' },
+                    Vet:       { color: 'bg-teal-500/10 text-teal-700 border-teal-200/50',    icon: <Stethoscope className="w-3.5 h-3.5" />, label: '🩺 Vet' },
+                    Rescue:    { color: 'bg-blue-500/10 text-blue-700 border-blue-200/50',     icon: <Truck className="w-3.5 h-3.5" />, label: '🚑 Rescue' },
+                    Volunteer: { color: 'bg-rose-500/10 text-rose-700 border-rose-200/50',     icon: <HeartHandshake className="w-3.5 h-3.5" />, label: '🤝 Volunteer' },
+                  };
+
+                  return (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-[11px] font-black uppercase text-slate-400 tracking-wider">
+                            <th className="pb-3.5 pl-4">Applicant / Application</th>
+                            <th className="pb-3.5">Type</th>
+                            <th className="pb-3.5">Contact</th>
+                            <th className="pb-3.5">Status</th>
+                            <th className="pb-3.5">Submitted</th>
+                            <th className="pb-3.5 pr-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
+                          {filtered.map((app, idx) => {
+                            const tc = typeConfig[app._appType] || typeConfig.Shelter;
+                            const appKey = app._id || app.id || idx;
+                            const statusBadge =
                               app.status === 'Approved'
-                                ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200'
+                                ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200/50'
                                 : app.status === 'Rejected'
-                                ? 'bg-rose-500/10 text-rose-700 border-rose-200'
-                                : 'bg-amber-500/10 text-amber-700 border-amber-200'
-                            }`}>
-                              {app.status}
-                            </span>
-                          </div>
+                                ? 'bg-rose-500/10 text-rose-700 border-rose-200/50'
+                                : app.status === 'Site Visit'
+                                ? 'bg-blue-500/10 text-blue-700 border-blue-200/50'
+                                : 'bg-amber-500/10 text-amber-700 border-amber-200/50';
 
-                          {/* Applicant & Shelter Info Grid */}
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                            <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                              <div className="text-slate-400 font-bold mb-0.5">Applicant</div>
-                              <div className="text-slate-800 font-extrabold">{app.applicantId?.fullName || app.userId?.fullName || 'N/A'}</div>
-                              <div className="text-slate-500 font-semibold text-[10px]">{app.applicantId?.email || app.userId?.email}</div>
-                            </div>
-                            <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                              <div className="text-slate-400 font-bold mb-0.5">Shelter Contact</div>
-                              <div className="text-slate-800 font-extrabold">{app.shelterEmail}</div>
-                              <div className="text-slate-500 font-semibold text-[10px]">+91 {app.shelterPhoneNumber}</div>
-                            </div>
-                            <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                              <div className="text-slate-400 font-bold mb-0.5">Location</div>
-                              <div className="text-slate-800 font-extrabold">{app.latitude?.toFixed(4)}, {app.longitude?.toFixed(4)}</div>
-                              <div className="text-slate-500 font-semibold text-[10px]">Lat / Long</div>
-                            </div>
-                            <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                              <div className="text-slate-400 font-bold mb-0.5">Capacity</div>
-                              <div className="text-slate-800 font-extrabold">{app.occupiedCages}/{app.totalCages} cages</div>
-                              <div className="text-slate-500 font-semibold text-[10px]">{app.totalStaffs} staff members</div>
-                            </div>
-                          </div>
+                            const submittedDate = app._submittedAt
+                              ? new Date(app._submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                              : 'N/A';
 
-                          {/* Review Note + Action Buttons */}
-                          {app.status === 'Pending' && (
-                            <div className="space-y-3 pt-1 border-t border-slate-100">
-                              <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Review Note (optional — shown to applicant on rejection)</label>
-                                <input
-                                  type="text"
-                                  placeholder="e.g. Missing valid registration document"
-                                  value={shelterReviewNote[app._id] || ''}
-                                  onChange={(e) => setShelterReviewNote(prev => ({ ...prev, [app._id]: e.target.value }))}
-                                  className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737] transition"
-                                />
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <button
-                                  onClick={() => handleReviewApplication(app._id, 'Approved')}
-                                  disabled={shelterReviewing[app._id]}
-                                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-sm"
-                                >
-                                  <CheckCircle className="w-3.5 h-3.5" />
-                                  {shelterReviewing[app._id] ? 'Processing…' : 'Approve & Create Shelter'}
-                                </button>
-                                <button
-                                  onClick={() => handleReviewApplication(app._id, 'Rejected')}
-                                  disabled={shelterReviewing[app._id]}
-                                  className="flex items-center gap-1.5 px-4 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 disabled:opacity-60 text-rose-700 text-xs font-bold rounded-xl transition cursor-pointer"
-                                >
-                                  <XCircle className="w-3.5 h-3.5" />
-                                  Reject
-                                </button>
-                              </div>
-                            </div>
-                          )}
+                            return (
+                              <tr key={appKey} className="hover:bg-slate-50/70 transition">
+                                {/* Applicant / Application Column */}
+                                <td className="py-4 pl-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${tc.color}`}>
+                                      {tc.icon}
+                                    </div>
+                                    <div className="space-y-0.5">
+                                      <h4 className="font-extrabold text-slate-900 text-sm">{app._name}</h4>
+                                      <div className="text-[11px] text-slate-400 font-semibold">{app._subLabel}</div>
+                                      {app._id2 && <div className="text-[10px] text-slate-300 font-bold">#{app._id2}</div>}
+                                    </div>
+                                  </div>
+                                </td>
 
-                          {app.status !== 'Pending' && (
-                            <div className="pt-1 border-t border-slate-100 text-[11px] text-slate-400 font-semibold flex items-center justify-between">
-                              <div className="flex items-center gap-1.5">
-                                {app.status === 'Approved' ? (
-                                  <>
-                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
-                                    <span>
-                                      Approved — Shelter registered {app.shelter?.shelterNumber ? `as ${app.shelter.shelterNumber}` : ''}
-                                    </span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <XCircle className="w-3.5 h-3.5 text-rose-400" />
-                                    <span>Rejected{app.reviewNote ? ` — ${app.reviewNote}` : ''}</span>
-                                  </>
-                                )}
-                              </div>
+                                {/* Type Column */}
+                                <td className="py-4">
+                                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${tc.color}`}>
+                                    {tc.label}
+                                  </span>
+                                </td>
 
-                              <div className="text-[10px] text-slate-300 font-bold">
-                                Submitted {new Date(app.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                                {/* Contact Column */}
+                                <td className="py-4">
+                                  <div className="flex items-center gap-1.5 text-slate-700 max-w-[180px]">
+                                    <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                                    <span className="truncate">{app._contact}</span>
+                                  </div>
+                                </td>
+
+                                {/* Status Column */}
+                                <td className="py-4">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${statusBadge}`}>
+                                    {app.status}
+                                  </span>
+                                  {app.status === 'Site Visit' && app.siteVisitScheduleDate && (
+                                    <div className="text-[10px] text-blue-600 font-bold mt-1 flex items-center gap-1">
+                                      <Calendar className="w-3 h-3" />
+                                      {new Date(app.siteVisitScheduleDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                    </div>
+                                  )}
+                                </td>
+
+                                {/* Submitted Column */}
+                                <td className="py-4 text-slate-400 text-xs font-semibold whitespace-nowrap">
+                                  {submittedDate}
+                                </td>
+
+                                {/* Actions Column */}
+                                <td className="py-4 pr-4 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    {/* Preview Modal Button */}
+                                    <button
+                                      onClick={() => {
+                                        setSelectedApplicationForModal(app);
+                                        setShowApplicationDetailsModal(true);
+                                      }}
+                                      title="View Application Details"
+                                      className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-900 rounded-lg transition cursor-pointer"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </button>
+
+                                    {/* Shelter Application Flow: Pending -> Site Visit & Valuation Period -> Site Visit Report & Decision -> Approved/Rejected */}
+                                    {app._appType === 'Shelter' ? (
+                                      <>
+                                        {app.status === 'Pending' && (
+                                          <>
+                                            <button
+                                              onClick={() => handleOpenScheduleSiteVisit(app)}
+                                              title="Schedule Physical Site Visit & Valuation Period"
+                                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs"
+                                            >
+                                              <Calendar className="w-3.5 h-3.5" />
+                                              Schedule Site Visit
+                                            </button>
+                                            <button
+                                              onClick={() => handleReviewApplication(app._id, 'Rejected')}
+                                              disabled={shelterReviewing[app._id]}
+                                              className="flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 disabled:opacity-60 text-rose-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                                            >
+                                              <XCircle className="w-3.5 h-3.5" />
+                                              Reject
+                                            </button>
+                                          </>
+                                        )}
+
+                                        {app.status === 'Site Visit' && (
+                                          <>
+                                            <button
+                                              onClick={() => handleOpenReportModal(app)}
+                                              title="Upload Site Inspection Report & Finalize Approval"
+                                              className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs"
+                                            >
+                                              <FileText className="w-3.5 h-3.5" />
+                                              Report & Decide
+                                            </button>
+                                            <button
+                                              onClick={() => handleOpenScheduleSiteVisit(app)}
+                                              title="Reschedule Valuation Date"
+                                              className="p-1.5 hover:bg-slate-100 text-slate-500 rounded-lg transition cursor-pointer"
+                                            >
+                                              <Calendar className="w-3.5 h-3.5" />
+                                            </button>
+                                          </>
+                                        )}
+
+                                        {(app.status === 'Approved' || app.status === 'Rejected') && (
+                                          <span className="text-[11px] text-slate-400 font-semibold px-2 py-1 bg-slate-50 rounded-lg">
+                                            {app.status === 'Approved' ? '✓ Approved' : '✗ Rejected'}
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : (
+                                      /* Other applications (Vet, Rescue, Volunteer) */
+                                      <>
+                                        {app.status === 'Pending' ? (
+                                          <>
+                                            {app._appType === 'Vet' && (
+                                              <>
+                                                <button
+                                                  onClick={() => handleReviewVetApp(app.id, 'Approved')}
+                                                  className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                                                >
+                                                  <CheckCircle className="w-3.5 h-3.5" /> Approve
+                                                </button>
+                                                <button
+                                                  onClick={() => handleReviewVetApp(app.id, 'Rejected')}
+                                                  className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                                                >
+                                                  <XCircle className="w-3.5 h-3.5" /> Reject
+                                                </button>
+                                              </>
+                                            )}
+                                            {app._appType === 'Rescue' && (
+                                              <>
+                                                <button
+                                                  onClick={() => handleReviewRescueApp(app.id, 'Approved')}
+                                                  className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                                                >
+                                                  <CheckCircle className="w-3.5 h-3.5" /> Approve
+                                                </button>
+                                                <button
+                                                  onClick={() => handleReviewRescueApp(app.id, 'Rejected')}
+                                                  className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                                                >
+                                                  <XCircle className="w-3.5 h-3.5" /> Reject
+                                                </button>
+                                              </>
+                                            )}
+                                            {app._appType === 'Volunteer' && (
+                                              <>
+                                                <button
+                                                  onClick={() => handleReviewVolunteerApp(app.id, 'Approved')}
+                                                  className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                                                >
+                                                  <CheckCircle className="w-3.5 h-3.5" /> Approve
+                                                </button>
+                                                <button
+                                                  onClick={() => handleReviewVolunteerApp(app.id, 'Rejected')}
+                                                  className="flex items-center gap-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                                                >
+                                                  <XCircle className="w-3.5 h-3.5" /> Reject
+                                                </button>
+                                              </>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <span className="text-[11px] text-slate-300 font-semibold px-2 py-1 bg-slate-50 rounded-lg">
+                                            {app.status === 'Approved' ? '✓ Processed' : '✗ Declined'}
+                                          </span>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                  )}
-                </div>
-              )}
-
-              {/* ═══ CATEGORY 2: VET STAFF REGISTRATION APPLICATIONS ═══ */}
-              {applicationsCategoryTab === 'Vet' && (
-                <div className="space-y-4">
-                  <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-700">Veterinary Council License & Clinic Verification Requests</span>
-                    </div>
-                    <div className="text-xs font-extrabold text-slate-400">
-                      {vetApplications.length} total applications
-                    </div>
-                  </div>
-
-                  <div className="space-y-3.5">
-                    {vetApplications.map((v) => (
-                      <div key={v.id} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-teal-500/10 text-teal-600 rounded-xl">
-                              <Stethoscope className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-extrabold text-slate-900 text-sm">{v.applicantName}</h4>
-                                <span className="px-2 py-0.5 bg-teal-50 text-teal-700 border border-teal-200/50 text-[10px] font-bold rounded-lg">
-                                  {v.registrationNumber}
-                                </span>
-                              </div>
-                              <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                                {v.qualification} • {v.experienceYears} Years Clinical Experience
-                              </p>
-                            </div>
-                          </div>
-                          <span className={`px-3 py-1 text-[10px] font-black rounded-full border ${
-                            v.status === 'Approved'
-                              ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200'
-                              : v.status === 'Rejected'
-                              ? 'bg-rose-500/10 text-rose-700 border-rose-200'
-                              : 'bg-amber-500/10 text-amber-700 border-amber-200'
-                          }`}>
-                            {v.status}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                          <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                            <div className="text-slate-400 font-bold mb-0.5">Clinic / Hospital</div>
-                            <div className="text-slate-800 font-extrabold">{v.clinicName}</div>
-                          </div>
-                          <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                            <div className="text-slate-400 font-bold mb-0.5">Location</div>
-                            <div className="text-slate-800 font-extrabold">{v.city}</div>
-                          </div>
-                          <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                            <div className="text-slate-400 font-bold mb-0.5">Email</div>
-                            <div className="text-slate-800 font-extrabold">{v.email}</div>
-                          </div>
-                          <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                            <div className="text-slate-400 font-bold mb-0.5">Contact</div>
-                            <div className="text-slate-800 font-extrabold">+91 {v.phone}</div>
-                          </div>
-                        </div>
-
-                        {v.status === 'Pending' && (
-                          <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-3">
-                            <button
-                              onClick={() => handleReviewVetApp(v.id, 'Approved')}
-                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5"
-                            >
-                              <CheckCircle className="w-3.5 h-3.5" /> Approve & Verify License
-                            </button>
-                            <button
-                              onClick={() => handleReviewVetApp(v.id, 'Rejected')}
-                              className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition cursor-pointer"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* ═══ CATEGORY 3: RESCUE TEAM REGISTRATION APPLICATIONS ═══ */}
-              {applicationsCategoryTab === 'Rescue' && (
-                <div className="space-y-4">
-                  <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-700">Rescue Squad Accreditation & Territory Coverage Requests</span>
-                    </div>
-                    <div className="text-xs font-extrabold text-slate-400">
-                      {rescueTeamApplications.length} total applications
-                    </div>
-                  </div>
-
-                  <div className="space-y-3.5">
-                    {rescueTeamApplications.map((r) => (
-                      <div key={r.id} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-blue-500/10 text-blue-600 rounded-xl">
-                              <Truck className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-extrabold text-slate-900 text-sm">{r.teamName}</h4>
-                                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200/50 text-[10px] font-bold rounded-lg">
-                                  Lead: {r.teamLead}
-                                </span>
-                              </div>
-                              <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                                Coverage: {r.coverageZone}
-                              </p>
-                            </div>
-                          </div>
-                          <span className={`px-3 py-1 text-[10px] font-black rounded-full border ${
-                            r.status === 'Approved'
-                              ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200'
-                              : r.status === 'Rejected'
-                              ? 'bg-rose-500/10 text-rose-700 border-rose-200'
-                              : 'bg-amber-500/10 text-amber-700 border-amber-200'
-                          }`}>
-                            {r.status}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                          <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                            <div className="text-slate-400 font-bold mb-0.5">Fleet & Equipment</div>
-                            <div className="text-slate-800 font-extrabold">{r.vehicleFleet}</div>
-                          </div>
-                          <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                            <div className="text-slate-400 font-bold mb-0.5">Operatives & Volunteers</div>
-                            <div className="text-slate-800 font-extrabold">{r.memberCount} certified members</div>
-                          </div>
-                          <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                            <div className="text-slate-400 font-bold mb-0.5">Contact Lead</div>
-                            <div className="text-slate-800 font-extrabold">{r.email} • +91 {r.phone}</div>
-                          </div>
-                        </div>
-
-                        {r.status === 'Pending' && (
-                          <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-3">
-                            <button
-                              onClick={() => handleReviewRescueApp(r.id, 'Approved')}
-                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5"
-                            >
-                              <CheckCircle className="w-3.5 h-3.5" /> Approve & Accredit Unit
-                            </button>
-                            <button
-                              onClick={() => handleReviewRescueApp(r.id, 'Rejected')}
-                              className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition cursor-pointer"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* ═══ CATEGORY 4: VOLUNTEER REGISTRATION APPLICATIONS ═══ */}
-              {applicationsCategoryTab === 'Volunteer' && (
-                <div className="space-y-4">
-                  <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-700">Community Volunteer Enlistment & Foster Program Applications</span>
-                    </div>
-                    <div className="text-xs font-extrabold text-slate-400">
-                      {volunteerApplications.length} total applications
-                    </div>
-                  </div>
-
-                  <div className="space-y-3.5">
-                    {volunteerApplications.map((vol) => (
-                      <div key={vol.id} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-rose-500/10 text-rose-600 rounded-xl">
-                              <HeartHandshake className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-extrabold text-slate-900 text-sm">{vol.volunteerName}</h4>
-                                <span className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-200/50 text-[10px] font-bold rounded-lg">
-                                  {vol.city}
-                                </span>
-                              </div>
-                              <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                                Availability: {vol.availability}
-                              </p>
-                            </div>
-                          </div>
-                          <span className={`px-3 py-1 text-[10px] font-black rounded-full border ${
-                            vol.status === 'Approved'
-                              ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200'
-                              : vol.status === 'Rejected'
-                              ? 'bg-rose-500/10 text-rose-700 border-rose-200'
-                              : 'bg-amber-500/10 text-amber-700 border-amber-200'
-                          }`}>
-                            {vol.status}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                          <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                            <div className="text-slate-400 font-bold mb-0.5">Interest Areas</div>
-                            <div className="text-slate-800 font-extrabold">{vol.interests.join(', ')}</div>
-                          </div>
-                          <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                            <div className="text-slate-400 font-bold mb-0.5">Email</div>
-                            <div className="text-slate-800 font-extrabold">{vol.email}</div>
-                          </div>
-                          <div className="p-3 bg-[#F8FAF9] rounded-xl">
-                            <div className="text-slate-400 font-bold mb-0.5">Phone Number</div>
-                            <div className="text-slate-800 font-extrabold">+91 {vol.phone}</div>
-                          </div>
-                        </div>
-
-                        {vol.status === 'Pending' && (
-                          <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-3">
-                            <button
-                              onClick={() => handleReviewVolunteerApp(vol.id, 'Approved')}
-                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5"
-                            >
-                              <CheckCircle className="w-3.5 h-3.5" /> Approve Volunteer
-                            </button>
-                            <button
-                              onClick={() => handleReviewVolunteerApp(vol.id, 'Rejected')}
-                              className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition cursor-pointer"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                  );
+                })()}
+              </div>
 
             </div>
           )}
+
 
           {/* ══ SUB-TAB 5: MANAGE VET (VETERINARY STAFF MANAGEMENT) ══ */}
           {subTab === 'Manage Vet' && (
@@ -2692,6 +2899,444 @@ const AdminDashboard = () => {
             </div>
           )}
 
+          {/* ══ SUB-TAB: MANAGE ANIMALS & CATEGORIES ══ */}
+          {(subTab === 'Manage Animals' || activeTab === 'Manage Animals') && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              
+              {/* Metric Cards Row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Registered Animals</div>
+                  <div className="text-2xl font-black text-slate-900 mt-1">{animalsList.length}</div>
+                  <div className="text-[10px] font-bold text-[#237737] mt-0.5">Active Database Records</div>
+                </div>
+
+                <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Animal Categories</div>
+                  <div className="text-2xl font-black text-blue-600 mt-1">{animalCategories.length}</div>
+                  <div className="text-[10px] font-bold text-blue-600 mt-0.5">
+                    {animalCategories.filter(c => c.status === 'Active').length} Active Classifications
+                  </div>
+                </div>
+
+                <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Available for Adoption</div>
+                  <div className="text-2xl font-black text-emerald-600 mt-1">
+                    {animalsList.filter(a => a.status === 'Available' || a.status === 'Rescued').length}
+                  </div>
+                  <div className="text-[10px] font-bold text-emerald-600 mt-0.5">In Care / Adoption Ready</div>
+                </div>
+
+                <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Under Treatment</div>
+                  <div className="text-2xl font-black text-amber-600 mt-1">
+                    {animalsList.filter(a => a.status === 'Under Treatment' || a.status === 'Critical').length}
+                  </div>
+                  <div className="text-[10px] font-bold text-amber-600 mt-0.5">Medical Intensive Care</div>
+                </div>
+              </div>
+
+              {/* View Switch Tabs (Category Table vs Registered Animals) */}
+              <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setAnimalActiveSubView('categories')}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
+                      animalActiveSubView === 'categories'
+                        ? 'bg-[#237737] text-white shadow-sm shadow-[#237737]/10'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Tag className="w-3.5 h-3.5" />
+                    <span>Animal Categories ({animalCategories.length})</span>
+                  </button>
+
+                  <button
+                    onClick={() => setAnimalActiveSubView('animals')}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
+                      animalActiveSubView === 'animals'
+                        ? 'bg-[#237737] text-white shadow-sm shadow-[#237737]/10'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Dog className="w-3.5 h-3.5" />
+                    <span>Registered Animals ({animalsList.length})</span>
+                  </button>
+                </div>
+
+                <div className="hidden sm:flex items-center gap-2 text-xs font-bold text-slate-400">
+                  <span>Primary Key: <code className="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded font-mono text-[11px]">categoryId</code></span>
+                </div>
+              </div>
+
+              {/* VIEW 1: ANIMAL CATEGORIES TABLE */}
+              {animalActiveSubView === 'categories' && (
+                <div className="space-y-4">
+                  {/* Category Purpose & Search Row */}
+                  <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                      <div className="relative w-full sm:w-72">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          value={categorySearchQuery}
+                          onChange={(e) => setCategorySearchQuery(e.target.value)}
+                          placeholder="Search category name, ID, desc…"
+                          className="w-full pl-10 pr-4 py-2 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737] transition"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        {['All', 'Active', 'Inactive'].map((st) => (
+                          <button
+                            key={st}
+                            onClick={() => setCategoryStatusFilter(st)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                              categoryStatusFilter === st
+                                ? 'bg-[#237737] text-white shadow-sm'
+                                : 'bg-[#F8FAF9] hover:bg-slate-100 text-slate-600 border border-slate-200/80'
+                            }`}
+                          >
+                            {st}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleOpenAddCategoryModal}
+                      className="px-4 py-2 bg-[#237737] hover:bg-[#1d632e] text-white text-xs font-bold rounded-xl transition cursor-pointer shadow shadow-[#237737]/10 flex items-center gap-1.5 shrink-0"
+                    >
+                      <Plus className="w-4 h-4" /> Add Animal Category
+                    </button>
+                  </div>
+
+                  {/* Category Table */}
+                  <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
+                    <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50/50">
+                      <div>
+                        <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                          <Tag className="w-4 h-4 text-[#237737]" />
+                          Animal Category Table
+                        </h3>
+                        <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+                          Stores different categories of animals such as Dog, Cat, Bird, Cow, etc.
+                        </p>
+                      </div>
+                      <span className="text-xs font-bold text-slate-400">
+                        {animalCategories.length} Total Categories
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50/30">
+                            <th className="py-3.5 px-5">SI No.</th>
+                            <th className="py-3.5 px-5">Category ID</th>
+                            <th className="py-3.5 px-5">Category Name</th>
+                            <th className="py-3.5 px-5">Description</th>
+                            <th className="py-3.5 px-5">Status</th>
+                            <th className="py-3.5 px-5">Created At</th>
+                            <th className="py-3.5 px-5">Updated At</th>
+                            <th className="py-3.5 px-5 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50 text-xs font-semibold text-slate-700">
+                          {animalCategories
+                            .filter((cat) => {
+                              const q = categorySearchQuery.toLowerCase();
+                              const matchQ =
+                                !q ||
+                                cat.categoryId?.toLowerCase().includes(q) ||
+                                cat.categoryName?.toLowerCase().includes(q) ||
+                                cat.description?.toLowerCase().includes(q);
+                              const matchSt =
+                                categoryStatusFilter === 'All' || cat.status === categoryStatusFilter;
+                              return matchQ && matchSt;
+                            })
+                            .map((cat, index) => (
+                              <tr key={cat._id || cat.categoryId || index} className="hover:bg-slate-50/70 transition-colors">
+                                <td className="py-3.5 px-5 font-bold text-slate-400">
+                                  {index + 1}
+                                </td>
+                                <td className="py-3.5 px-5 font-mono font-bold text-[#237737]">
+                                  {cat.categoryId || `CAT-${String(index + 1).padStart(4, '0')}`}
+                                </td>
+                                <td className="py-3.5 px-5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-700 font-black text-xs flex items-center justify-center">
+                                      {cat.categoryName === 'Dog' ? '🐕' : cat.categoryName === 'Cat' ? '🐈' : cat.categoryName === 'Bird' ? '🦜' : cat.categoryName === 'Cow' ? '🐄' : '🐾'}
+                                    </span>
+                                    <span className="font-extrabold text-slate-900 text-sm">
+                                      {cat.categoryName}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-5 max-w-xs text-slate-500 text-xs">
+                                  {cat.description || 'General animal classification'}
+                                </td>
+                                <td className="py-3.5 px-5">
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${
+                                    cat.status === 'Active'
+                                      ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200/50'
+                                      : 'bg-rose-500/10 text-rose-700 border-rose-200/50'
+                                  }`}>
+                                    {cat.status || 'Active'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-5 text-[11px] text-slate-400">
+                                  {cat.createdAt ? new Date(cat.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                                </td>
+                                <td className="py-3.5 px-5 text-[11px] text-slate-400">
+                                  {cat.updatedAt ? new Date(cat.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                                </td>
+                                <td className="py-3.5 px-5 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      onClick={() => handleOpenEditCategoryModal(cat)}
+                                      className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-800 rounded-lg transition cursor-pointer"
+                                      title="Edit Category"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleToggleCategoryStatus(cat)}
+                                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                                        cat.status === 'Active'
+                                          ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                          : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                                      }`}
+                                    >
+                                      {cat.status === 'Active' ? 'Deactivate' : 'Activate'}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          {animalCategories.length === 0 && !categoriesLoading && (
+                            <tr>
+                              <td colSpan={8} className="py-10 text-center text-slate-400 text-xs font-semibold">
+                                No animal categories defined yet. Click "+ Add Animal Category" above.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* VIEW 2: REGISTERED ANIMALS REGISTRY */}
+              {animalActiveSubView === 'animals' && (
+                <div className="space-y-4">
+                  {/* Search & Filter Bar */}
+                  <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                      <div className="relative w-full sm:w-64">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          value={animalSearchQuery}
+                          onChange={(e) => setAnimalSearchQuery(e.target.value)}
+                          placeholder="Search name, ID, breed, cage…"
+                          className="w-full pl-10 pr-4 py-2 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737] transition"
+                        />
+                      </div>
+
+                      {/* Species Filter */}
+                      <select
+                        value={animalSpeciesFilter}
+                        onChange={(e) => setAnimalSpeciesFilter(e.target.value)}
+                        className="px-3.5 py-2 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-[#237737] cursor-pointer"
+                      >
+                        <option value="All">All Species / Categories</option>
+                        {animalCategories.map((c) => (
+                          <option key={c._id || c.categoryId} value={c.categoryName}>
+                            {c.categoryName}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Status Filter */}
+                      <select
+                        value={animalStatusFilter}
+                        onChange={(e) => setAnimalStatusFilter(e.target.value)}
+                        className="px-3.5 py-2 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-[#237737] cursor-pointer"
+                      >
+                        <option value="All">All Statuses</option>
+                        <option value="Available">Available</option>
+                        <option value="Rescued">Rescued</option>
+                        <option value="Under Treatment">Under Treatment</option>
+                        <option value="Critical">Critical</option>
+                        <option value="Adopted">Adopted</option>
+                        <option value="Released">Released</option>
+                      </select>
+                    </div>
+
+                    <button
+                      onClick={handleOpenAddAnimalModal}
+                      className="px-4 py-2 bg-[#237737] hover:bg-[#1d632e] text-white text-xs font-bold rounded-xl transition cursor-pointer shadow shadow-[#237737]/10 flex items-center gap-1.5 shrink-0"
+                    >
+                      <Plus className="w-4 h-4" /> Register Animal
+                    </button>
+                  </div>
+
+                  {/* Registered Animals Table */}
+                  <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
+                    <div className="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50/50">
+                      <div>
+                        <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                          <Dog className="w-4 h-4 text-[#237737]" />
+                          Registered Rescue Animals Registry
+                        </h3>
+                        <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+                          Comprehensive index of rescued animals across all shelter facilities and partner clinics
+                        </p>
+                      </div>
+                      <span className="text-xs font-bold text-slate-400">
+                        {animalsList.length} Total Animals Registered
+                      </span>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-400 bg-slate-50/30">
+                            <th className="py-3.5 px-5">Animal ID</th>
+                            <th className="py-3.5 px-5">Animal Name & Breed</th>
+                            <th className="py-3.5 px-5">Category / Species</th>
+                            <th className="py-3.5 px-5">Gender / Age</th>
+                            <th className="py-3.5 px-5">Facility / Cage</th>
+                            <th className="py-3.5 px-5">Health</th>
+                            <th className="py-3.5 px-5">Status</th>
+                            <th className="py-3.5 px-5 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50 text-xs font-semibold text-slate-700">
+                          {animalsList
+                            .filter((anl) => {
+                              const q = animalSearchQuery.toLowerCase();
+                              const matchQ =
+                                !q ||
+                                anl.animalId?.toLowerCase().includes(q) ||
+                                anl.name?.toLowerCase().includes(q) ||
+                                anl.breed?.toLowerCase().includes(q) ||
+                                anl.cageNumber?.toLowerCase().includes(q) ||
+                                anl.shelterName?.toLowerCase().includes(q);
+                              const matchSp =
+                                animalSpeciesFilter === 'All' ||
+                                anl.species?.toLowerCase() === animalSpeciesFilter.toLowerCase();
+                              const matchSt =
+                                animalStatusFilter === 'All' || anl.status === animalStatusFilter;
+                              return matchQ && matchSp && matchSt;
+                            })
+                            .map((anl) => (
+                              <tr key={anl._id || anl.animalId} className="hover:bg-slate-50/70 transition-colors">
+                                <td className="py-3.5 px-5 font-mono font-bold text-[#237737]">
+                                  {anl.animalId}
+                                </td>
+                                <td className="py-3.5 px-5">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-[#237737]/10 text-[#237737] font-black text-xs flex items-center justify-center shrink-0">
+                                      {anl.species === 'Dog' ? '🐕' : anl.species === 'Cat' ? '🐈' : anl.species === 'Bird' ? '🦜' : anl.species === 'Cow' ? '🐄' : '🐾'}
+                                    </div>
+                                    <div>
+                                      <p className="font-extrabold text-slate-900 text-sm">
+                                        {anl.name || 'Unnamed Animal'}
+                                      </p>
+                                      <p className="text-[11px] text-slate-400 font-semibold">
+                                        {anl.breed || 'Mixed Breed'} {anl.color ? `• ${anl.color}` : ''}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-5 font-extrabold text-slate-800">
+                                  <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">
+                                    {anl.species}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-5 text-slate-600">
+                                  {anl.gender || 'Unknown'} {anl.approxAge ? `• ${anl.approxAge}` : ''}
+                                </td>
+                                <td className="py-3.5 px-5">
+                                  <p className="font-bold text-slate-800">{anl.shelterName || 'Central Registry'}</p>
+                                  <p className="text-[11px] text-slate-400 font-mono">Cage: {anl.cageNumber || 'Unassigned'}</p>
+                                </td>
+                                <td className="py-3.5 px-5">
+                                  <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                                    anl.healthCondition === 'Critical'
+                                      ? 'bg-rose-100 text-rose-700'
+                                      : anl.healthCondition === 'Under Treatment'
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-emerald-100 text-emerald-700'
+                                  }`}>
+                                    {anl.healthCondition || 'Healthy'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-5">
+                                  <select
+                                    value={anl.status}
+                                    onChange={(e) => handleToggleAnimalStatus(anl, e.target.value)}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer ${
+                                      anl.status === 'Available' || anl.status === 'Rescued'
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : anl.status === 'Under Treatment' || anl.status === 'Critical'
+                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                        : anl.status === 'Adopted'
+                                        ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                        : 'bg-slate-50 text-slate-700 border-slate-200'
+                                    }`}
+                                  >
+                                    <option value="Available">Available</option>
+                                    <option value="Rescued">Rescued</option>
+                                    <option value="Under Treatment">Under Treatment</option>
+                                    <option value="Critical">Critical</option>
+                                    <option value="Adopted">Adopted</option>
+                                    <option value="Released">Released</option>
+                                  </select>
+                                </td>
+                                <td className="py-3.5 px-5 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <button
+                                      onClick={() => {
+                                        setSelectedAnimalForModal(anl);
+                                        setShowAnimalDetailsModal(true);
+                                      }}
+                                      className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-800 rounded-lg transition cursor-pointer"
+                                      title="View Details"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteAnimal(anl)}
+                                      className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition cursor-pointer"
+                                      title="Delete Animal Record"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          {animalsList.length === 0 && !animalsLoading && (
+                            <tr>
+                              <td colSpan={8} className="py-10 text-center text-slate-400 text-xs font-semibold">
+                                No registered animals found. Click "+ Register Animal" above to add the first record.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
+
           {/* ══ SUB-TAB: AI MODULE (UNDER DEVELOPMENT) ══ */}
           {subTab === 'AI Module' && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -2996,184 +3641,92 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
-
-      {/* Add User Modal (Real MongoDB Registration) */}
-      {showAddUserModal && (
+      {/* ══ ADD / EDIT ANIMAL CATEGORY MODAL ══ */}
+      {showCategoryModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl overflow-hidden max-w-lg w-full border border-slate-100 shadow-2xl p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
-              <div>
-                <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  <UserPlus className="w-5 h-5 text-[#237737]" /> Create User Account
-                </h2>
-                <p className="text-xs text-slate-400 font-semibold mt-0.5">
-                  Directly add a verified account to the ResQNet platform database.
-                </p>
+          <div className="bg-white rounded-3xl overflow-hidden max-w-lg w-full border border-slate-100 shadow-2xl p-6 sm:p-8 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#237737]/10 text-[#237737] flex items-center justify-center">
+                  <Tag className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    {editingCategory ? 'Edit Animal Category' : 'Add Animal Category'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-semibold">
+                    {editingCategory ? `Updating ${editingCategory.categoryId}` : 'Configure a new species classification in the category table'}
+                  </p>
+                </div>
               </div>
-              <button 
-                onClick={() => setShowAddUserModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              <button
+                onClick={() => {
+                  setShowCategoryModal(false);
+                  setEditingCategory(null);
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Error & Success Messages */}
-            {addUserSuccess && (
-              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2.5 text-emerald-700 text-xs font-bold">
-                <CheckCircle className="w-4 h-4 shrink-0" /> {addUserSuccess}
-              </div>
-            )}
-            {addUserError && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2.5 text-rose-700 text-xs font-bold">
-                <AlertCircle className="w-4 h-4 shrink-0" /> {addUserError}
+            {categoryError && (
+              <div className="p-3 bg-rose-50 text-rose-700 text-xs font-semibold rounded-xl border border-rose-200 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{categoryError}</span>
               </div>
             )}
 
-            <form onSubmit={handleAddUser} className="space-y-4">
+            {categorySuccess && (
+              <div className="p-3 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-xl border border-emerald-200 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 shrink-0" />
+                <span>{categorySuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveCategory} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600">Full Name <span className="text-rose-500">*</span></label>
-                <input 
-                  type="text" 
-                  value={newUserName}
-                  onChange={(e) => setNewUserName(e.target.value)}
-                  placeholder="e.g. Dennis Jacob"
+                <label className="text-xs font-bold text-slate-600">Category Name <span className="text-rose-500">*</span></label>
+                <input
+                  type="text"
+                  value={categoryName}
+                  onChange={(e) => setCategoryName(e.target.value)}
+                  placeholder="e.g. Dog, Cat, Bird, Cow, Horse, Rabbit, Other"
                   required
-                  className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] font-semibold text-xs transition"
+                  className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737]"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">Email Address <span className="text-rose-500">*</span></label>
-                  <input 
-                    type="email" 
-                    value={newUserEmail}
-                    onChange={(e) => setNewUserEmail(e.target.value)}
-                    placeholder="user@example.com"
-                    required
-                    className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] font-semibold text-xs transition"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">Phone Number <span className="text-rose-500">*</span></label>
-                  <input 
-                    type="tel" 
-                    value={newUserPhone}
-                    onChange={(e) => setNewUserPhone(e.target.value)}
-                    placeholder="10-digit mobile"
-                    maxLength={10}
-                    required
-                    className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] font-semibold text-xs transition"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600">Description</label>
+                <textarea
+                  value={categoryDescription}
+                  onChange={(e) => setCategoryDescription(e.target.value)}
+                  rows="3"
+                  placeholder="Description for this animal classification, shelter habitat guidelines, rescue notes..."
+                  className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737] resize-none"
+                ></textarea>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">Password <span className="text-rose-500">*</span></label>
-                  <input 
-                    type="password" 
-                    value={newUserPassword}
-                    onChange={(e) => setNewUserPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
-                    minLength={6}
-                    required
-                    className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] font-semibold text-xs transition"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">Role</label>
-                  <select 
-                    value={newUserRole}
-                    onChange={(e) => setNewUserRole(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] font-bold text-xs transition cursor-pointer"
-                  >
-                    <option value="Public User">Public User</option>
-                    <option value="Rescue Team">Rescue Team</option>
-                    <option value="Shelter">Shelter</option>
-                    <option value="Veterinary Staff">Veterinary Staff</option>
-                    <option value="Admin">Admin</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">City / Town</label>
-                  <input 
-                    type="text" 
-                    value={newUserCity}
-                    onChange={(e) => setNewUserCity(e.target.value)}
-                    placeholder="e.g. Kottayam"
-                    className="w-full px-3.5 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] font-semibold text-xs transition"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">District</label>
-                  <input 
-                    type="text" 
-                    value={newUserDistrict}
-                    onChange={(e) => setNewUserDistrict(e.target.value)}
-                    placeholder="e.g. Kottayam"
-                    className="w-full px-3.5 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] font-semibold text-xs transition"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">State</label>
-                  <input 
-                    type="text" 
-                    value={newUserState}
-                    onChange={(e) => setNewUserState(e.target.value)}
-                    placeholder="e.g. Kerala"
-                    className="w-full px-3.5 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] font-semibold text-xs transition"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">Street Address</label>
-                  <input 
-                    type="text" 
-                    value={newUserAddress}
-                    onChange={(e) => setNewUserAddress(e.target.value)}
-                    placeholder="e.g. Main Road, Near Market"
-                    className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] font-semibold text-xs transition"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">Pincode</label>
-                  <input 
-                    type="text" 
-                    value={newUserPincode}
-                    onChange={(e) => setNewUserPincode(e.target.value)}
-                    placeholder="6-digit pincode"
-                    maxLength={6}
-                    className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] font-semibold text-xs transition"
-                  />
-                </div>
-              </div>
-
               <div className="flex items-center gap-3 pt-2">
-                <button 
+                <button
                   type="button"
-                  onClick={() => setShowAddUserModal(false)}
-                  className="w-1/3 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                  onClick={() => {
+                    setShowCategoryModal(false);
+                    setEditingCategory(null);
+                  }}
+                  className="w-1/3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
-                  disabled={addUserSubmitting}
-                  className="w-2/3 py-3 bg-[#237737] hover:bg-[#1d632e] disabled:opacity-60 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-md shadow-[#237737]/15 flex items-center justify-center gap-2"
+                <button
+                  type="submit"
+                  disabled={categorySubmitting}
+                  className="w-2/3 py-2.5 bg-[#237737] hover:bg-[#1d632e] disabled:opacity-60 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-md shadow-[#237737]/15 flex items-center justify-center gap-2"
                 >
-                  {addUserSubmitting ? (
-                    <><RefreshCw className="w-4 h-4 animate-spin" /> Creating User…</>
+                  {categorySubmitting ? (
+                    <><Clock className="w-4 h-4 animate-spin" /> Saving Category…</>
                   ) : (
-                    <><UserPlus className="w-4 h-4" /> Save Account to Database</>
+                    <><Check className="w-4 h-4" /> {editingCategory ? 'Update Category' : 'Save Category Record'}</>
                   )}
                 </button>
               </div>
@@ -3181,198 +3734,889 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
-
-      {/* Add Shelter Modal (Direct Admin Creation) */}
-      {showAddShelterModal && (
+      {/* ══ ANIMAL DETAILS MODAL ══ */}
+      {showAnimalDetailsModal && selectedAnimalForModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl overflow-hidden max-w-lg w-full border border-slate-100 shadow-2xl p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
-              <div>
-                <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-[#237737]" /> Add New Shelter
-                </h2>
-                <p className="text-xs text-slate-400 font-semibold mt-0.5">
-                  Directly register a shelter facility. A unique shelter number (e.g. S01, S02...) will be generated.
-                </p>
+          <div className="bg-white rounded-3xl overflow-hidden max-w-lg w-full border border-slate-100 shadow-2xl p-6 sm:p-7 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">
+                    {selectedAnimalForModal.name || 'Rescue Animal'} ({selectedAnimalForModal.animalId})
+                  </h3>
+                  <p className="text-xs text-slate-400 font-semibold">
+                    {selectedAnimalForModal.breed || 'Mixed Breed'} • {selectedAnimalForModal.species}
+                  </p>
+                </div>
               </div>
               <button
-                onClick={() => setShowAddShelterModal(false)}
-                className="p-1 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                onClick={() => {
+                  setShowAnimalDetailsModal(false);
+                  setSelectedAnimalForModal(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Error / Success Messages */}
-            {shelterFormSuccess && (
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2.5 text-emerald-700 text-xs font-bold">
-                <CheckCircle className="w-4 h-4 shrink-0" /> {shelterFormSuccess}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-[#F8FAF9] rounded-xl border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Category</span>
+                <p className="font-extrabold text-slate-800 mt-0.5">{selectedAnimalForModal.species}</p>
               </div>
-            )}
-            {shelterFormError && (
-              <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2.5 text-rose-700 text-xs font-bold">
-                <AlertCircle className="w-4 h-4 shrink-0" /> {shelterFormError}
+              <div className="p-3 bg-[#F8FAF9] rounded-xl border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Gender & Age</span>
+                <p className="font-extrabold text-slate-800 mt-0.5">{selectedAnimalForModal.gender} • {selectedAnimalForModal.approxAge || 'Not specified'}</p>
               </div>
-            )}
+              <div className="p-3 bg-[#F8FAF9] rounded-xl border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Cage / Location</span>
+                <p className="font-extrabold text-slate-800 mt-0.5">{selectedAnimalForModal.cageNumber ? `Cage ${selectedAnimalForModal.cageNumber}` : 'Unassigned'}</p>
+              </div>
+              <div className="p-3 bg-[#F8FAF9] rounded-xl border border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Facility</span>
+                <p className="font-extrabold text-slate-800 mt-0.5">{selectedAnimalForModal.shelterName || 'Central Registry'}</p>
+              </div>
+            </div>
 
-            <form onSubmit={handleAddShelter} className="space-y-4">
-              {/* Shelter Name & Email */}
+            <div className="p-4 bg-[#F8FAF9] rounded-2xl border border-slate-100 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Health Condition</span>
+                <p className="font-extrabold text-slate-800 mt-0.5">{selectedAnimalForModal.healthCondition || 'Healthy'}</p>
+              </div>
+              <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${
+                selectedAnimalForModal.status === 'Available' || selectedAnimalForModal.status === 'Rescued'
+                  ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200/50'
+                  : 'bg-amber-500/10 text-amber-700 border-amber-200/50'
+              }`}>
+                {selectedAnimalForModal.status}
+              </span>
+            </div>
+            <div className="pt-2 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAnimalDetailsModal(false);
+                  setSelectedAnimalForModal(null);
+                }}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Close Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ SHELTER DETAILS MODAL ══ */}
+      {showShelterDetailsModal && selectedShelterForModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-lg w-full border border-slate-100 shadow-2xl p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#237737]/10 text-[#237737] font-black flex items-center justify-center shrink-0">
+                  <Building2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-black text-slate-900">
+                      {selectedShelterForModal.shelterName}
+                    </h3>
+                    <span className="px-2.5 py-0.5 bg-[#237737]/10 border border-[#237737]/30 text-[#237737] text-xs font-black rounded-lg">
+                      {selectedShelterForModal.shelterNumber || 'SH-0001'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                    {selectedShelterForModal.userId?.fullName
+                      ? `Manager: ${selectedShelterForModal.userId.fullName} (${selectedShelterForModal.userId.email})`
+                      : 'Managed directly by System Admin'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowShelterDetailsModal(false);
+                  setSelectedShelterForModal(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Status Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${
+                selectedShelterForModal.status !== 'Inactive'
+                  ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200/50'
+                  : 'bg-rose-500/10 text-rose-700 border-rose-200/50'
+              }`}>
+                Account: {selectedShelterForModal.status !== 'Inactive' ? 'Active' : 'Inactive'}
+              </span>
+
+              <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${
+                (selectedShelterForModal.currentStatus || selectedShelterForModal.status) === 'OPEN'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : (selectedShelterForModal.currentStatus || selectedShelterForModal.status) === 'FULL'
+                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                  : (selectedShelterForModal.currentStatus || selectedShelterForModal.status) === 'UNDER_MAINTENANCE'
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-slate-100 text-slate-700 border-slate-200'
+              }`}>
+                Operational: {selectedShelterForModal.currentStatus || selectedShelterForModal.status || 'OPEN'}
+              </span>
+
+              <span className="px-3 py-1 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                Type: {selectedShelterForModal.registrationType?.replace(/_/g, ' ') || 'STATE TRUST SOCIETY'}
+              </span>
+            </div>
+
+            {/* Facility Details Grid */}
+            <div className="bg-[#F8FAF9] rounded-2xl p-4 border border-slate-100 space-y-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <span className="text-slate-400 font-bold block uppercase text-[10px]">Contact Email</span>
+                  <p className="font-extrabold text-slate-800 mt-0.5">{selectedShelterForModal.shelterEmail}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block uppercase text-[10px]">Phone Number</span>
+                  <p className="font-extrabold text-slate-800 mt-0.5">+91 {selectedShelterForModal.shelterPhoneNumber}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block uppercase text-[10px]">Registration Number</span>
+                  <p className="font-extrabold text-slate-800 mt-0.5">{selectedShelterForModal.registrationNumber || 'Not specified'}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block uppercase text-[10px]">GPS Coordinates</span>
+                  <p className="font-extrabold text-slate-800 mt-0.5">
+                    {selectedShelterForModal.latitude?.toFixed(5)}, {selectedShelterForModal.longitude?.toFixed(5)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Capacity details */}
+              <div className="pt-2 border-t border-slate-200/60 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span>Cage Capacity: {selectedShelterForModal.occupiedCages || 0} / {selectedShelterForModal.totalCages || 0}</span>
+                  <span className="text-emerald-700 font-extrabold">
+                    {selectedShelterForModal.totalCages > 0
+                      ? `${Math.round(((selectedShelterForModal.occupiedCages || 0) / selectedShelterForModal.totalCages) * 100)}% occupied (${(selectedShelterForModal.totalCages - (selectedShelterForModal.occupiedCages || 0))} available)`
+                      : '0 available'}
+                  </span>
+                </div>
+                <div className="h-2 bg-slate-200/80 rounded-full w-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-[#237737] transition-all"
+                    style={{
+                      width: `${
+                        selectedShelterForModal.totalCages > 0
+                          ? Math.min(
+                              Math.round(
+                                ((selectedShelterForModal.occupiedCages || 0) /
+                                  selectedShelterForModal.totalCages) *
+                                  100
+                              ),
+                              100
+                            )
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold pt-1">
+                  <span>Staff Strength: {selectedShelterForModal.totalStaffs || 0} certified members</span>
+                  {selectedShelterForModal.shelterApplicationId && (
+                    <span>Origin: Application #{selectedShelterForModal.shelterApplicationId}</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-400 font-semibold">
+                <span>
+                  Registered: {new Date(selectedShelterForModal.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+                <span>
+                  Updated: {new Date(selectedShelterForModal.updatedAt || selectedShelterForModal.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <button
+                onClick={() => handleToggleShelterStatus(selectedShelterForModal)}
+                disabled={shelterActionLoading[selectedShelterForModal._id]}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer flex items-center gap-2 ${
+                  selectedShelterForModal.status !== 'Inactive'
+                    ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                }`}
+              >
+                {shelterActionLoading[selectedShelterForModal._id] ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : selectedShelterForModal.status !== 'Inactive' ? (
+                  'Deactivate Shelter'
+                ) : (
+                  'Activate Shelter'
+                )}
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowShelterDetailsModal(false);
+                  setSelectedShelterForModal(null);
+                }}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ══ APPLICATION DETAILS MODAL ══ */}
+      {showApplicationDetailsModal && selectedApplicationForModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-lg w-full border border-slate-100 shadow-2xl p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#237737]/10 text-[#237737] font-black flex items-center justify-center shrink-0">
+                  {selectedApplicationForModal._appType === 'Vet' ? (
+                    <Stethoscope className="w-6 h-6 text-teal-600" />
+                  ) : selectedApplicationForModal._appType === 'Rescue' ? (
+                    <Truck className="w-6 h-6 text-blue-600" />
+                  ) : selectedApplicationForModal._appType === 'Volunteer' ? (
+                    <HeartHandshake className="w-6 h-6 text-rose-600" />
+                  ) : (
+                    <Building2 className="w-6 h-6 text-[#237737]" />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-black text-slate-900">
+                      {selectedApplicationForModal._name || 'Application Details'}
+                    </h3>
+                    {selectedApplicationForModal._id2 && (
+                      <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 text-xs font-black rounded-lg">
+                        #{selectedApplicationForModal._id2}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                    {selectedApplicationForModal._subLabel || 'Registration Review'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowApplicationDetailsModal(false);
+                  setSelectedApplicationForModal(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Status Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`px-3 py-1 rounded-xl text-xs font-bold border ${
+                selectedApplicationForModal.status === 'Approved'
+                  ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200/50'
+                  : selectedApplicationForModal.status === 'Rejected'
+                  ? 'bg-rose-500/10 text-rose-700 border-rose-200/50'
+                  : selectedApplicationForModal.status === 'Site Visit'
+                  ? 'bg-blue-500/10 text-blue-700 border-blue-200/50'
+                  : 'bg-amber-500/10 text-amber-700 border-amber-200/50'
+              }`}>
+                Review Status: {selectedApplicationForModal.status}
+              </span>
+
+              <span className="px-3 py-1 rounded-xl text-xs font-bold bg-[#237737]/10 text-[#237737] border border-[#237737]/30">
+                Type: {selectedApplicationForModal._appType} Application
+              </span>
+            </div>
+
+            {/* Application Information Grid */}
+            <div className="bg-[#F8FAF9] rounded-2xl p-4 border border-slate-100 space-y-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <span className="text-slate-400 font-bold block uppercase text-[10px]">Contact Person / Lead</span>
+                  <p className="font-extrabold text-slate-800 mt-0.5">
+                    {selectedApplicationForModal.applicantId?.fullName ||
+                      selectedApplicationForModal.userId?.fullName ||
+                      selectedApplicationForModal.applicantName ||
+                      selectedApplicationForModal.teamLead ||
+                      selectedApplicationForModal.volunteerName ||
+                      selectedApplicationForModal._name}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block uppercase text-[10px]">Contact Email</span>
+                  <p className="font-extrabold text-slate-800 mt-0.5">{selectedApplicationForModal._contact}</p>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold block uppercase text-[10px]">Phone Number</span>
+                  <p className="font-extrabold text-slate-800 mt-0.5">
+                    +91 {selectedApplicationForModal.shelterPhoneNumber || selectedApplicationForModal.phone || 'Not provided'}
+                  </p>
+                </div>
+
+                {/* Specific Fields per Type */}
+                {selectedApplicationForModal._appType === 'Shelter' && (
+                  <>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">Registration Type</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">{selectedApplicationForModal.registrationType || 'STATE TRUST SOCIETY'}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">Registration Number</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">{selectedApplicationForModal.registrationNumber || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">Facility Capacity</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">{selectedApplicationForModal.occupiedCages || 0} / {selectedApplicationForModal.totalCages || 0} cages</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">GPS Coordinates</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">
+                        {selectedApplicationForModal.latitude?.toFixed(4)}, {selectedApplicationForModal.longitude?.toFixed(4)}
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {selectedApplicationForModal._appType === 'Vet' && (
+                  <>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">Clinic / Hospital</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">{selectedApplicationForModal.clinicName || 'Private Practice'}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">Registration / VCI Number</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">{selectedApplicationForModal.registrationNumber}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">Qualification</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">{selectedApplicationForModal.qualification}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">Clinical Experience</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">{selectedApplicationForModal.experienceYears} Years</p>
+                    </div>
+                  </>
+                )}
+
+                {selectedApplicationForModal._appType === 'Rescue' && (
+                  <>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">Coverage Territory</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">{selectedApplicationForModal.coverageZone}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">Fleet & Equipment</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">{selectedApplicationForModal.vehicleFleet}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">Active Members</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">{selectedApplicationForModal.memberCount} certified operatives</p>
+                    </div>
+                  </>
+                )}
+
+                {selectedApplicationForModal._appType === 'Volunteer' && (
+                  <>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">City / Location</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">{selectedApplicationForModal.city}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">Availability</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">{selectedApplicationForModal.availability}</p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <span className="text-slate-400 font-bold block uppercase text-[10px]">Interests / Service Areas</span>
+                      <p className="font-extrabold text-slate-800 mt-0.5">{Array.isArray(selectedApplicationForModal.interests) ? selectedApplicationForModal.interests.join(', ') : selectedApplicationForModal.interests}</p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Site Visit Section for Shelter Applications */}
+              {selectedApplicationForModal._appType === 'Shelter' && (selectedApplicationForModal.siteVisitScheduleDate || selectedApplicationForModal.status === 'Site Visit') && (
+                <div className="pt-3 border-t border-slate-200/80 space-y-2 bg-blue-50/60 p-3 rounded-xl border border-blue-100">
+                  <div className="flex items-center gap-1.5 text-blue-900 font-black text-xs">
+                    <Calendar className="w-4 h-4 text-blue-600" />
+                    <span>Physical Site Visit & Valuation Period</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-slate-500 font-bold block">Valuation Scheduled Date</span>
+                      <p className="font-black text-blue-900 mt-0.5">
+                        {selectedApplicationForModal.siteVisitScheduleDate
+                          ? new Date(selectedApplicationForModal.siteVisitScheduleDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                          : 'Pending schedule'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-bold block">Valuation Window / Slot</span>
+                      <p className="font-bold text-slate-800 mt-0.5">{selectedApplicationForModal.siteVisitValuationPeriod || 'Standard Evaluation Window'}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-bold block">Assigned Auditor</span>
+                      <p className="font-bold text-slate-800 mt-0.5">{selectedApplicationForModal.siteVisitInspector || 'Admin Field Officer'}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-bold block">Inspection Notes / Instructions</span>
+                      <p className="font-semibold text-slate-700 mt-0.5 italic">{selectedApplicationForModal.siteVisitNotes || 'Standard facility verification'}</p>
+                    </div>
+                  </div>
+
+                  {/* Site Visit Report */}
+                  {selectedApplicationForModal.siteVisitReport && (
+                    <div className="pt-2 border-t border-blue-200/60 mt-2">
+                      <span className="text-blue-900 font-bold block uppercase text-[10px]">Official Site Inspection & Valuation Report</span>
+                      <p className="font-medium text-slate-800 mt-1 bg-white p-2.5 rounded-lg border border-blue-100 text-xs">
+                        {selectedApplicationForModal.siteVisitReport}
+                      </p>
+                      {selectedApplicationForModal.siteVisitReportDate && (
+                        <span className="text-[10px] text-slate-400 font-semibold block mt-1">
+                          Report Filed: {new Date(selectedApplicationForModal.siteVisitReportDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Review Note */}
+              {selectedApplicationForModal.reviewNote && !selectedApplicationForModal.siteVisitReport && (
+                <div className="pt-2 border-t border-slate-200/60">
+                  <span className="text-slate-400 font-bold block uppercase text-[10px]">Admin Review Note</span>
+                  <p className="font-semibold text-slate-700 mt-0.5 italic">{selectedApplicationForModal.reviewNote}</p>
+                </div>
+              )}
+
+              {/* Submitted timestamp */}
+              <div className="pt-2 border-t border-slate-200/60 text-[11px] text-slate-400 font-semibold">
+                Submitted: {selectedApplicationForModal._submittedAt
+                  ? new Date(selectedApplicationForModal._submittedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                  : 'N/A'}
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between gap-3 pt-2">
+              {selectedApplicationForModal._appType === 'Shelter' ? (
+                <div className="flex items-center gap-2">
+                  {selectedApplicationForModal.status === 'Pending' && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setShowApplicationDetailsModal(false);
+                          handleOpenScheduleSiteVisit(selectedApplicationForModal);
+                        }}
+                        className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                      >
+                        <Calendar className="w-4 h-4" /> Schedule Site Visit
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleReviewApplication(selectedApplicationForModal._id, 'Rejected');
+                          setShowApplicationDetailsModal(false);
+                          setSelectedApplicationForModal(null);
+                        }}
+                        className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        <XCircle className="w-4 h-4" /> Reject
+                      </button>
+                    </>
+                  )}
+
+                  {selectedApplicationForModal.status === 'Site Visit' && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setShowApplicationDetailsModal(false);
+                          handleOpenReportModal(selectedApplicationForModal);
+                        }}
+                        className="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                      >
+                        <FileText className="w-4 h-4" /> Upload Report & Decide
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowApplicationDetailsModal(false);
+                          handleOpenScheduleSiteVisit(selectedApplicationForModal);
+                        }}
+                        className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                      >
+                        Reschedule
+                      </button>
+                    </>
+                  )}
+
+                  {(selectedApplicationForModal.status === 'Approved' || selectedApplicationForModal.status === 'Rejected') && (
+                    <span className="text-xs font-bold text-slate-400">
+                      Application {selectedApplicationForModal.status.toLowerCase()}.
+                    </span>
+                  )}
+                </div>
+              ) : (
+                /* Vet, Rescue, Volunteer actions */
+                <div className="flex items-center gap-2">
+                  {selectedApplicationForModal.status === 'Pending' ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          if (selectedApplicationForModal._appType === 'Vet') {
+                            handleReviewVetApp(selectedApplicationForModal.id, 'Approved');
+                          } else if (selectedApplicationForModal._appType === 'Rescue') {
+                            handleReviewRescueApp(selectedApplicationForModal.id, 'Approved');
+                          } else if (selectedApplicationForModal._appType === 'Volunteer') {
+                            handleReviewVolunteerApp(selectedApplicationForModal.id, 'Approved');
+                          }
+                          setShowApplicationDetailsModal(false);
+                          setSelectedApplicationForModal(null);
+                        }}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        <CheckCircle className="w-4 h-4" /> Approve Application
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          if (selectedApplicationForModal._appType === 'Vet') {
+                            handleReviewVetApp(selectedApplicationForModal.id, 'Rejected');
+                          } else if (selectedApplicationForModal._appType === 'Rescue') {
+                            handleReviewRescueApp(selectedApplicationForModal.id, 'Rejected');
+                          } else if (selectedApplicationForModal._appType === 'Volunteer') {
+                            handleReviewVolunteerApp(selectedApplicationForModal.id, 'Rejected');
+                          }
+                          setShowApplicationDetailsModal(false);
+                          setSelectedApplicationForModal(null);
+                        }}
+                        className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        <XCircle className="w-4 h-4" /> Reject
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-xs font-bold text-slate-400">
+                      Application {selectedApplicationForModal.status.toLowerCase()}.
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  setShowApplicationDetailsModal(false);
+                  setSelectedApplicationForModal(null);
+                }}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ══ SITE VISIT & VALUATION PERIOD SCHEDULER MODAL ══ */}
+      {showSiteVisitModal && selectedAppForSiteVisit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-lg w-full border border-slate-100 shadow-2xl p-6 sm:p-7 space-y-5">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-600 font-black flex items-center justify-center shrink-0">
+                  <Calendar className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-black text-slate-900">
+                      Schedule Site Visit
+                    </h3>
+                    <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 text-xs font-black rounded-lg border border-blue-200">
+                      Valuation Period
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                    {selectedAppForSiteVisit.shelterName} ({selectedAppForSiteVisit.shelterApplicationId || 'SA-0001'})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowSiteVisitModal(false);
+                  setSelectedAppForSiteVisit(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Info Notice */}
+            <div className="p-3.5 bg-blue-50 border border-blue-200/70 rounded-2xl text-xs text-blue-900 space-y-1">
+              <p className="font-extrabold flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                Mandatory Physical Inspection Process
+              </p>
+              <p className="text-blue-700 text-[11px] leading-relaxed">
+                Admins must schedule a valuation period date to physically inspect facility cages, veterinary hygiene, and safety compliance before granting approval.
+              </p>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleConfirmScheduleSiteVisit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600">
+                    Valuation Period Date <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={siteVisitDate}
+                    onChange={(e) => setSiteVisitDate(e.target.value)}
+                    required
+                    min={new Date().toISOString().slice(0, 10)}
+                    className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737]"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-600">
+                    Valuation Window / Slot
+                  </label>
+                  <input
+                    type="text"
+                    value={siteVisitValuationPeriod}
+                    onChange={(e) => setSiteVisitValuationPeriod(e.target.value)}
+                    placeholder="e.g. 10:00 AM - 1:00 PM or 3-Day Window"
+                    className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737]"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600">Shelter Name <span className="text-rose-500">*</span></label>
+                <label className="text-xs font-bold text-slate-600">
+                  Assigned Auditor / Field Inspector
+                </label>
                 <input
                   type="text"
-                  value={addShelterName}
-                  onChange={(e) => setAddShelterName(e.target.value)}
-                  placeholder="e.g. Green Valley Animal Shelter"
-                  required
-                  className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] text-xs font-semibold transition"
+                  value={siteVisitInspector}
+                  onChange={(e) => setSiteVisitInspector(e.target.value)}
+                  placeholder="e.g. Admin / Field Officer Name"
+                  className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737]"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">Shelter Email <span className="text-rose-500">*</span></label>
-                  <input
-                    type="email"
-                    value={addShelterEmail}
-                    onChange={(e) => setAddShelterEmail(e.target.value)}
-                    placeholder="shelter@example.com"
-                    required
-                    className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] text-xs font-semibold transition"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">Phone Number <span className="text-rose-500">*</span></label>
-                  <input
-                    type="tel"
-                    value={addShelterPhone}
-                    onChange={(e) => setAddShelterPhone(e.target.value)}
-                    placeholder="10-digit number"
-                    maxLength={10}
-                    required
-                    className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] text-xs font-semibold transition"
-                  />
-                </div>
-              </div>
-
-              {/* Coordinates & Location detection */}
-              <div className="space-y-2 p-3.5 bg-[#F8FAF9] rounded-2xl border border-slate-100">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-[#237737]" /> Location Coordinates <span className="text-rose-500">*</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleDetectLocation}
-                    disabled={addLocating}
-                    className="flex items-center gap-1 px-3 py-1 bg-[#237737]/10 hover:bg-[#237737]/20 text-[#237737] text-[11px] font-bold rounded-lg transition cursor-pointer"
-                  >
-                    <Navigation className="w-3 h-3" />
-                    {addLocating ? 'Detecting…' : 'Detect Location'}
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    type="number"
-                    step="any"
-                    value={addLatitude}
-                    onChange={(e) => setAddLatitude(e.target.value)}
-                    placeholder="Latitude (e.g. 9.9312)"
-                    required
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737]"
-                  />
-                  <input
-                    type="number"
-                    step="any"
-                    value={addLongitude}
-                    onChange={(e) => setAddLongitude(e.target.value)}
-                    placeholder="Longitude (e.g. 76.2673)"
-                    required
-                    className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737]"
-                  />
-                </div>
-              </div>
-
-              {/* Capacity & Staff */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">Total Staff <span className="text-rose-500">*</span></label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={addTotalStaffs}
-                    onChange={(e) => setAddTotalStaffs(e.target.value)}
-                    placeholder="e.g. 10"
-                    required
-                    className="w-full px-3.5 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737]"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">Total Cages <span className="text-rose-500">*</span></label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={addTotalCages}
-                    onChange={(e) => setAddTotalCages(e.target.value)}
-                    placeholder="e.g. 40"
-                    required
-                    className="w-full px-3.5 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737]"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600">Occupied <span className="text-rose-500">*</span></label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={addOccupiedCages}
-                    onChange={(e) => setAddOccupiedCages(e.target.value)}
-                    placeholder="e.g. 5"
-                    required
-                    className="w-full px-3.5 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737]"
-                  />
-                </div>
-              </div>
-
-              {/* Status */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600">Initial Status</label>
-                <select
-                  value={addStatus}
-                  onChange={(e) => setAddStatus(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:border-[#237737] cursor-pointer"
-                >
-                  <option value="OPEN">OPEN (Accepting Animals)</option>
-                  <option value="FULL">FULL (At Capacity)</option>
-                  <option value="UNDER_MAINTENANCE">UNDER MAINTENANCE</option>
-                  <option value="CLOSED">CLOSED</option>
-                </select>
+                <label className="text-xs font-bold text-slate-600">
+                  Inspection Notes & Shelter Instructions
+                </label>
+                <textarea
+                  value={siteVisitNotes}
+                  onChange={(e) => setSiteVisitNotes(e.target.value)}
+                  rows="3"
+                  placeholder="e.g. Keep trust registration documents, cage cleanliness registers, and veterinary agreements ready."
+                  className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737] resize-none"
+                ></textarea>
               </div>
 
-              {/* Submit Buttons */}
               <div className="flex items-center gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddShelterModal(false)}
-                  className="w-1/3 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                  onClick={() => {
+                    setShowSiteVisitModal(false);
+                    setSelectedAppForSiteVisit(null);
+                  }}
+                  className="w-1/3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={shelterSubmitting}
-                  className="w-2/3 py-3 bg-[#237737] hover:bg-[#1d632e] disabled:opacity-60 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-md shadow-[#237737]/15 flex items-center justify-center gap-2"
+                  disabled={siteVisitSubmitting}
+                  className="w-2/3 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-md shadow-blue-600/15 flex items-center justify-center gap-2"
                 >
-                  {shelterSubmitting ? (
-                    <><Clock className="w-4 h-4 animate-spin" /> Saving Shelter…</>
+                  {siteVisitSubmitting ? (
+                    <><Clock className="w-4 h-4 animate-spin" /> Scheduling Visit…</>
                   ) : (
-                    <><Building2 className="w-4 h-4" /> Save Shelter Record</>
+                    <><Check className="w-4 h-4" /> Confirm & Set Valuation Date</>
                   )}
                 </button>
               </div>
             </form>
+
+          </div>
+        </div>
+      )}
+
+      {/* ══ SITE VISIT INSPECTION REPORT & DECISION MODAL ══ */}
+      {showReportModal && selectedAppForReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl overflow-hidden max-w-lg w-full border border-slate-100 shadow-2xl p-6 sm:p-7 space-y-5 max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-600 font-black flex items-center justify-center shrink-0">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-black text-slate-900">
+                      Site Visit Report & Decision
+                    </h3>
+                    <span className="px-2.5 py-0.5 bg-purple-50 text-purple-700 text-xs font-black rounded-lg border border-purple-200">
+                      Evaluation
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                    {selectedAppForReport.shelterName} ({selectedAppForReport.shelterApplicationId || 'SA-0001'})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowReportModal(false);
+                  setSelectedAppForReport(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Facility Context Summary */}
+            <div className="grid grid-cols-2 gap-2 text-xs bg-[#F8FAF9] p-3 rounded-2xl border border-slate-100">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Valuation Date</span>
+                <p className="font-extrabold text-slate-800 mt-0.5">
+                  {selectedAppForReport.siteVisitScheduleDate
+                    ? new Date(selectedAppForReport.siteVisitScheduleDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                    : 'N/A'}
+                </p>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Facility Capacity</span>
+                <p className="font-extrabold text-slate-800 mt-0.5">
+                  {selectedAppForReport.occupiedCages || 0} / {selectedAppForReport.totalCages || 0} Cages • {selectedAppForReport.totalStaffs || 0} Staff
+                </p>
+              </div>
+            </div>
+
+            {/* Report Form */}
+            <form onSubmit={handleSubmitSiteVisitReport} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">
+                  Physical Site Visit Inspection & Valuation Report <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  value={siteVisitReportText}
+                  onChange={(e) => setSiteVisitReportText(e.target.value)}
+                  rows="4"
+                  required
+                  placeholder="Document physical observations regarding facility cages, ventilation, hygiene, water access, staff readiness, and regulatory compliance..."
+                  className="w-full px-4 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-[#237737] resize-none"
+                ></textarea>
+              </div>
+
+              {/* Decision Options */}
+              <div className="space-y-2 pt-1">
+                <label className="text-xs font-bold text-slate-700">
+                  Audit Outcome Decision <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label
+                    onClick={() => setReportDecision('Approved')}
+                    className={`p-3 rounded-2xl border cursor-pointer transition flex flex-col justify-between ${
+                      reportDecision === 'Approved'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs'
+                        : 'bg-[#F8FAF9] border-slate-200 text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="reportDecision"
+                        checked={reportDecision === 'Approved'}
+                        onChange={() => setReportDecision('Approved')}
+                        className="accent-emerald-600"
+                      />
+                      <span className="font-black text-xs text-emerald-800">Pass & Approve</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-medium mt-1">
+                      Registers facility, assigns sequential ID & emails shelter login credentials.
+                    </span>
+                  </label>
+
+                  <label
+                    onClick={() => setReportDecision('Rejected')}
+                    className={`p-3 rounded-2xl border cursor-pointer transition flex flex-col justify-between ${
+                      reportDecision === 'Rejected'
+                        ? 'bg-rose-50 border-rose-500 text-rose-900 shadow-xs'
+                        : 'bg-[#F8FAF9] border-slate-200 text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="reportDecision"
+                        checked={reportDecision === 'Rejected'}
+                        onChange={() => setReportDecision('Rejected')}
+                        className="accent-rose-600"
+                      />
+                      <span className="font-black text-xs text-rose-800">Fail & Reject</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-medium mt-1">
+                      Declines application with inspection findings and notifies applicant.
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowReportModal(false);
+                    setSelectedAppForReport(null);
+                  }}
+                  className="w-1/3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={reportSubmitting || !siteVisitReportText.trim()}
+                  className={`w-2/3 py-2.5 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-md flex items-center justify-center gap-2 ${
+                    reportDecision === 'Approved'
+                      ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/15'
+                      : 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/15'
+                  }`}
+                >
+                  {reportSubmitting ? (
+                    <><Clock className="w-4 h-4 animate-spin" /> Submitting Report…</>
+                  ) : reportDecision === 'Approved' ? (
+                    <><Check className="w-4 h-4" /> Approve Registration</>
+                  ) : (
+                    <><XCircle className="w-4 h-4" /> Reject Application</>
+                  )}
+                </button>
+              </div>
+            </form>
+
           </div>
         </div>
       )}

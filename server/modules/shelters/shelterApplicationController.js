@@ -4,6 +4,33 @@ const User = require('../users/userModel');
 const { sendShelterApprovalEmail } = require('../../utils/emailService');
 const { createNotificationHelper } = require('../notifications/notificationController');
 
+// Helper to broadcast a notification to all Admin users
+const notifyAdminsHelper = async ({
+  title,
+  message,
+  type = 'ShelterApplication',
+  priority = 'Medium',
+  metadata = {},
+}) => {
+  try {
+    const admins = await User.find({ role: 'Admin' });
+    if (!admins || admins.length === 0) return;
+    const promises = admins.map((admin) =>
+      createNotificationHelper({
+        userId: admin._id,
+        title,
+        message,
+        type,
+        priority,
+        metadata,
+      })
+    );
+    await Promise.all(promises);
+  } catch (err) {
+    console.error('Failed to notify admins:', err.message);
+  }
+};
+
 // Helper to generate a secure temporary password meeting complexity criteria
 const generateTemporaryPassword = () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
@@ -73,18 +100,34 @@ const submitApplication = async (req, res) => {
       status: 'Pending',
     });
 
-    // Create In-App Notification for Application Submission
+    // 1. Create In-App Notification for the Applicant User
     createNotificationHelper({
       userId: applicantId,
       title: 'Shelter Application Submitted 📋',
-      message: `Your application for "${application.shelterName}" (#${application.shelterApplicationId}) has been submitted. Admin will review and approve.`,
+      message: `Your application for "${application.shelterName}" (#${application.shelterApplicationId}) has been successfully submitted. Admin will review details and schedule a physical site visit.`,
       type: 'ShelterApplication',
       priority: 'Medium',
       metadata: {
         shelterApplicationId: application.shelterApplicationId,
         shelterName: application.shelterName,
+        status: 'Pending',
       },
-    }).catch((err) => console.error('Failed to create submission notification:', err));
+    }).catch((err) => console.error('Failed to create submission notification for user:', err));
+
+    // 2. Broadcast Notification to All Admins
+    notifyAdminsHelper({
+      title: 'New Shelter Application Received 🏢',
+      message: `New shelter registration application received for "${application.shelterName}" (#${application.shelterApplicationId}) from ${req.user.fullName || 'User'}. Please review and set the valuation period date.`,
+      type: 'ShelterApplication',
+      priority: 'High',
+      metadata: {
+        shelterApplicationId: application.shelterApplicationId,
+        shelterName: application.shelterName,
+        applicantName: req.user.fullName,
+        applicantEmail: req.user.email,
+        status: 'Pending',
+      },
+    }).catch((err) => console.error('Failed to create submission notification for admins:', err));
 
     res.status(201).json({
       success: true,
@@ -197,18 +240,26 @@ const getAllApplications = async (req, res) => {
   }
 };
 
-// @desc    Approve or Reject a shelter application (Admin)
+// @desc    Review a shelter application: Schedule Site Visit, Upload Report, or Approve/Reject (Admin)
 // @route   PUT /api/shelters/applications/:id/review
 // @access  Private/Admin
 const reviewApplication = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, reviewNote } = req.body;
+    const {
+      status,
+      reviewNote,
+      siteVisitScheduleDate,
+      siteVisitValuationPeriod,
+      siteVisitNotes,
+      siteVisitReport,
+      siteVisitInspector,
+    } = req.body;
 
-    if (!['Approved', 'Rejected'].includes(status)) {
+    if (!['Pending', 'Site Visit', 'Approved', 'Rejected'].includes(status)) {
       return res.status(400).json({
         success: false,
-        message: "Status must be either 'Approved' or 'Rejected'.",
+        message: "Status must be 'Pending', 'Site Visit', 'Approved', or 'Rejected'.",
       });
     }
 
@@ -218,11 +269,63 @@ const reviewApplication = async (req, res) => {
     }
 
     application.status = status;
-    application.reviewNote = reviewNote || '';
+    if (reviewNote !== undefined) application.reviewNote = reviewNote;
+    if (siteVisitScheduleDate !== undefined) application.siteVisitScheduleDate = siteVisitScheduleDate;
+    if (siteVisitValuationPeriod !== undefined) application.siteVisitValuationPeriod = siteVisitValuationPeriod;
+    if (siteVisitNotes !== undefined) application.siteVisitNotes = siteVisitNotes;
+    if (siteVisitReport !== undefined) {
+      application.siteVisitReport = siteVisitReport;
+      application.siteVisitReportDate = new Date();
+    }
+    if (siteVisitInspector !== undefined) application.siteVisitInspector = siteVisitInspector;
+
     await application.save();
 
     let createdShelter = null;
     let tempPassword = null;
+
+    // When status is 'Site Visit': Dispatch notification to applicant and broadcast to admins
+    if (status === 'Site Visit') {
+      const visitDateStr = siteVisitScheduleDate
+        ? new Date(siteVisitScheduleDate).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          })
+        : siteVisitValuationPeriod || 'upcoming days';
+
+      const applicantTargetId = application.applicantId || application.userId;
+      if (applicantTargetId) {
+        createNotificationHelper({
+          userId: applicantTargetId,
+          title: 'Shelter Site Visit & Valuation Scheduled 📅',
+          message: `A physical site inspection and valuation for "${application.shelterName}" has been scheduled for ${visitDateStr}. The admin team will visit the premises to verify facilities and compliance.`,
+          type: 'ShelterApplication',
+          priority: 'High',
+          metadata: {
+            shelterApplicationId: application.shelterApplicationId,
+            status: 'Site Visit',
+            siteVisitScheduleDate: application.siteVisitScheduleDate,
+            siteVisitValuationPeriod: application.siteVisitValuationPeriod,
+            siteVisitNotes: application.siteVisitNotes,
+          },
+        }).catch((err) => console.error('Failed to create site visit notification for user:', err));
+      }
+
+      // Broadcast to Admins
+      notifyAdminsHelper({
+        title: 'Shelter Site Visit Scheduled 📅',
+        message: `Site inspection and valuation for "${application.shelterName}" (#${application.shelterApplicationId}) is scheduled for ${visitDateStr}. Assigned Auditor: ${application.siteVisitInspector || 'Admin Field Officer'}.`,
+        type: 'ShelterApplication',
+        priority: 'Medium',
+        metadata: {
+          shelterApplicationId: application.shelterApplicationId,
+          status: 'Site Visit',
+          siteVisitScheduleDate: application.siteVisitScheduleDate,
+          siteVisitValuationPeriod: application.siteVisitValuationPeriod,
+        },
+      }).catch((err) => console.error('Failed to create site visit notification for admins:', err));
+    }
 
     // On Approval: provision/upgrade User account with temporary password & create Shelter record
     if (status === 'Approved') {
@@ -283,10 +386,11 @@ const reviewApplication = async (req, res) => {
           totalStaffs: application.totalStaffs,
           totalCages: application.totalCages,
           occupiedCages: application.occupiedCages,
-          status:
+          currentStatus:
             application.occupiedCages >= application.totalCages && application.totalCages > 0
               ? 'FULL'
               : 'OPEN',
+          status: 'Active',
         });
       } else {
         // Update shelter record with current user ID and application info
@@ -297,10 +401,11 @@ const reviewApplication = async (req, res) => {
         existingShelter.shelterName = application.shelterName;
         existingShelter.shelterEmail = shelterEmail;
         existingShelter.shelterPhoneNumber = application.shelterPhoneNumber;
-        existingShelter.status =
+        existingShelter.currentStatus =
           existingShelter.occupiedCages >= existingShelter.totalCages && existingShelter.totalCages > 0
             ? 'FULL'
             : 'OPEN';
+        existingShelter.status = 'Active';
         await existingShelter.save();
       }
 
@@ -318,13 +423,13 @@ const reviewApplication = async (req, res) => {
         console.error('Failed to send shelter approval email:', mailErr.message);
       }
 
-      // Create in-app approval notification
+      // 1. Create in-app approval notification for the user
       const applicantTargetId = application.applicantId || application.userId;
       if (applicantTargetId) {
         createNotificationHelper({
           userId: applicantTargetId,
           title: 'Shelter Application Approved! 🎉',
-          message: `Your application for "${application.shelterName}" has been approved! Shelter account (${createdShelter.shelterNumber}) is created. Temporary password has been emailed to ${shelterEmail}.`,
+          message: `Congratulations! Your application for "${application.shelterName}" has been approved! Shelter account (${createdShelter.shelterNumber}) is created. Temporary password has been emailed to ${shelterEmail}.`,
           type: 'ShelterApplication',
           priority: 'High',
           metadata: {
@@ -332,8 +437,21 @@ const reviewApplication = async (req, res) => {
             shelterNumber: createdShelter.shelterNumber,
             status: 'Approved',
           },
-        }).catch((err) => console.error('Failed to create approval notification:', err));
+        }).catch((err) => console.error('Failed to create approval notification for user:', err));
       }
+
+      // 2. Broadcast approval to Admins
+      notifyAdminsHelper({
+        title: 'Shelter Registration Approved 🏢',
+        message: `"${application.shelterName}" (#${application.shelterApplicationId}) has been approved and registered with ID ${createdShelter.shelterNumber} following site valuation.`,
+        type: 'ShelterApplication',
+        priority: 'Medium',
+        metadata: {
+          shelterApplicationId: application.shelterApplicationId,
+          shelterNumber: createdShelter.shelterNumber,
+          status: 'Approved',
+        },
+      }).catch((err) => console.error('Failed to create approval notification for admins:', err));
     }
 
     // On Rejection of a previously approved one: close shelter & optionally downgrade user role
@@ -348,13 +466,13 @@ const reviewApplication = async (req, res) => {
         await User.findByIdAndUpdate(user._id, { role: 'Public User' });
       }
 
-      // Create in-app rejection notification
+      // 1. Create in-app rejection notification for user
       const applicantTargetId = application.applicantId || application.userId;
       if (applicantTargetId) {
         createNotificationHelper({
           userId: applicantTargetId,
           title: 'Shelter Application Rejected ⚠️',
-          message: `Your application for "${application.shelterName}" (#${application.shelterApplicationId}) has been rejected by the admin.${reviewNote ? ` Reason: ${reviewNote}.` : ''} Please submit a new application.`,
+          message: `Your application for "${application.shelterName}" (#${application.shelterApplicationId}) has been rejected by the admin.${reviewNote ? ` Reason: ${reviewNote}.` : ''} Please review requirements or submit a new application.`,
           type: 'ShelterApplication',
           priority: 'High',
           metadata: {
@@ -362,8 +480,21 @@ const reviewApplication = async (req, res) => {
             status: 'Rejected',
             reviewNote,
           },
-        }).catch((err) => console.error('Failed to create rejection notification:', err));
+        }).catch((err) => console.error('Failed to create rejection notification for user:', err));
       }
+
+      // 2. Broadcast rejection to Admins
+      notifyAdminsHelper({
+        title: 'Shelter Application Rejected ❌',
+        message: `"${application.shelterName}" (#${application.shelterApplicationId}) was marked as Rejected.${reviewNote ? ` Reason: ${reviewNote}` : ''}`,
+        type: 'ShelterApplication',
+        priority: 'Medium',
+        metadata: {
+          shelterApplicationId: application.shelterApplicationId,
+          status: 'Rejected',
+          reviewNote,
+        },
+      }).catch((err) => console.error('Failed to create rejection notification for admins:', err));
     }
 
     const updated = await ShelterApplication.findById(id)

@@ -82,21 +82,36 @@ const shelterApplicationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Pending', 'Approved', 'Rejected'],
+      enum: ['Pending', 'Site Visit', 'Approved', 'Rejected'],
       default: 'Pending',
     },
     reviewNote: {
       type: String,
       default: '',
     },
-    isDeleted: {
-      type: Boolean,
-      default: false,
-      index: true,
-    },
-    deletedAt: {
+    siteVisitScheduleDate: {
       type: Date,
       default: null,
+    },
+    siteVisitValuationPeriod: {
+      type: String,
+      default: '',
+    },
+    siteVisitReport: {
+      type: String,
+      default: '',
+    },
+    siteVisitReportDate: {
+      type: Date,
+      default: null,
+    },
+    siteVisitNotes: {
+      type: String,
+      default: '',
+    },
+    siteVisitInspector: {
+      type: String,
+      default: '',
     },
   },
   {

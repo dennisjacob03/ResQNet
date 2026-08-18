@@ -73,20 +73,16 @@ const shelterSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
-    status: {
+    currentStatus: {
       type: String,
       enum: ['OPEN', 'FULL', 'UNDER_MAINTENANCE', 'CLOSED'],
       default: 'UNDER_MAINTENANCE',
     },
-    isDeleted: {
-      type: Boolean,
-      default: false,
-      index: true,
-    },
-    deletedAt: {
-      type: Date,
-      default: null,
-    },
+    status: {
+      type: String,
+      enum: ['Active', 'Inactive'],
+      default: 'Active',
+    }
   },
   {
     timestamps: true,
