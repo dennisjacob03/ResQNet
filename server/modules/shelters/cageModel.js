@@ -7,14 +7,14 @@ const cageSchema = new mongoose.Schema(
       unique: true,
     },
     shelterId: {
-      type: String,
-      required: [true, 'Shelter ID is required'],
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'Shelter',
+      required: [true, 'Shelter reference is required'],
     },
     categoryId: {
-      type: String,
-      required: [true, 'Category ID is required'],
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'Category',
+      required: [true, 'Category reference is required'],
     },
     cageNumber: {
       type: Number,
@@ -22,22 +22,16 @@ const cageSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: {
-        values: ['Initial', 'Normal', 'Quarantine', 'Recovery'],
-        message: '{VALUE} is not a valid cage type',
-      },
-      required: [true, 'Cage type is required'],
+      enum: ['Initial', 'Normal', 'Quarantine', 'Recovery'],
+      default: 'Normal',
     },
     status: {
       type: String,
-      enum: {
-        values: ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE'],
-        message: '{VALUE} is not a valid cage status',
-      },
+      enum: ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE'],
       default: 'AVAILABLE',
     },
     animalId: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'Animal',
       default: null,
     },
@@ -47,7 +41,7 @@ const cageSchema = new mongoose.Schema(
   }
 );
 
-// Auto-generate cageId (e.g. CGE-0001) before save
+// Auto-generate cageId (e.g. CAGE-0001) before save
 cageSchema.pre('save', async function () {
   if (!this.cageId) {
     const records = await mongoose
@@ -58,7 +52,7 @@ cageSchema.pre('save', async function () {
     let maxSeq = 0;
     records.forEach((r) => {
       if (r.cageId) {
-        const match = r.cageId.match(/^CGE-(\d+)$/i);
+        const match = r.cageId.match(/^CAGE-(\d+)$/i);
         if (match) {
           const num = parseInt(match[1], 10);
           if (num > maxSeq) maxSeq = num;
@@ -66,7 +60,7 @@ cageSchema.pre('save', async function () {
       }
     });
 
-    this.cageId = `CGE-${String(maxSeq + 1).padStart(4, '0')}`;
+    this.cageId = `CAGE-${String(maxSeq + 1).padStart(4, '0')}`;
   }
 });
 

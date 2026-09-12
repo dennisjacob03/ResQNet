@@ -6,6 +6,7 @@ const {
   updateCategory,
   deleteCategory,
   getAnimals,
+  getAnimalById,
   createAnimal,
   updateAnimal,
   deleteAnimal,
@@ -26,6 +27,7 @@ router.route('/')
   .post(createAnimal);
 
 router.route('/:id')
+  .get(getAnimalById)
   .put(updateAnimal)
   .delete(deleteAnimal);
 

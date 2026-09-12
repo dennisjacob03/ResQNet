@@ -26,115 +26,15 @@ import {
   CheckCircle,
   ArrowRight,
   Search,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 /* ─────────────────────────────────────────────
    MOCK DATA
 ───────────────────────────────────────────── */
-const MOCK_REQUESTS = [
-  {
-    id: 'RQ-1042',
-    animal: 'Injured Dog',
-    animalIcon: '🐕',
-    location: 'MG Road, Sec 14',
-    reporter: 'Alex J.',
-    priority: 'High',
-    status: 'En Route',
-    time: '12 min ago',
-    priorityColor: 'bg-orange-100 text-orange-700 border-orange-200',
-    statusColor: 'bg-blue-100 text-blue-700 border-blue-200',
-  },
-  {
-    id: 'RQ-1045',
-    animal: 'Stray Cat Colony',
-    animalIcon: '🐈',
-    location: 'Koramangala 5th Block',
-    reporter: 'Priya S.',
-    priority: 'Medium',
-    status: 'Assigned',
-    time: '28 min ago',
-    priorityColor: 'bg-amber-100 text-amber-700 border-amber-200',
-    statusColor: 'bg-slate-100 text-slate-600 border-slate-200',
-  },
-  {
-    id: 'RQ-1047',
-    animal: 'Injured Cow',
-    animalIcon: '🐄',
-    location: 'NICE Road, Bidadi',
-    reporter: 'Rajan M.',
-    priority: 'Critical',
-    status: 'Pending',
-    time: '5 min ago',
-    priorityColor: 'bg-rose-100 text-rose-700 border-rose-200',
-    statusColor: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  },
-  {
-    id: 'RQ-1038',
-    animal: 'Trapped Bird',
-    animalIcon: '🐦',
-    location: 'Indiranagar 100 Ft Rd',
-    reporter: 'Sneha D.',
-    priority: 'Low',
-    status: 'Completed',
-    time: '1h 10m ago',
-    priorityColor: 'bg-slate-100 text-slate-500 border-slate-200',
-    statusColor: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  },
-  {
-    id: 'RQ-1036',
-    animal: 'Injured Monkey',
-    animalIcon: '🐒',
-    location: 'Cubbon Park Gate 3',
-    reporter: 'Admin',
-    priority: 'High',
-    status: 'Completed',
-    time: '2h ago',
-    priorityColor: 'bg-orange-100 text-orange-700 border-orange-200',
-    statusColor: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  },
-];
-
-const ACTIVITY_TIMELINE = [
-  {
-    time: '09:14',
-    text: 'RQ-1047 reported — Critical injured cow',
-    color: 'bg-rose-500',
-    highlight: false,
-  },
-  {
-    time: '09:22',
-    text: 'RQ-1042 assigned to Team Alpha',
-    color: 'bg-blue-500',
-    bold: 'Team Alpha',
-    highlight: false,
-  },
-  {
-    time: '09:35',
-    text: 'Team Alpha en route to MG Road',
-    color: 'bg-blue-400',
-    highlight: true,
-  },
-  {
-    time: '10:01',
-    text: 'RQ-1039 — rescue completed, animal transferred to shelter',
-    color: 'bg-emerald-500',
-    highlight: false,
-  },
-  {
-    time: '10:18',
-    text: 'New volunteer Suresh M. joined Team Beta',
-    color: 'bg-slate-400',
-    highlight: false,
-  },
-];
-
 /* Map pin positions (% of container) */
-const MAP_PINS = [
-  { id: 'RQ-1047', left: '22%', top: '48%', color: 'bg-rose-500', ring: 'ring-rose-300' },
-  { id: 'Team A',  left: '38%', top: '33%', color: 'bg-emerald-600', ring: 'ring-emerald-300' },
-  { id: 'RQ-1042', left: '60%', top: '45%', color: 'bg-orange-500', ring: 'ring-orange-300' },
-  { id: 'RQ-1045', left: '44%', top: '60%', color: 'bg-blue-500', ring: 'ring-blue-300' },
-];
+const MAP_PINS = [];
 
 /* ─────────────────────────────────────────────
    COMPONENT
@@ -144,12 +44,27 @@ const RescueTeamDashboard = () => {
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState('Rescue Dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('resqnet_sidebar_open');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem('resqnet_sidebar_open', String(next));
+      return next;
+    });
+  };
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [notifOpen, setNotifOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [showUpdateModal, setShowUpdateModal] = useState(null); // holds request id
+
+  // Live Requests and Timeline State
+  const [rescueRequests, setRescueRequests] = useState([]);
+  const [activityTimeline, setActivityTimeline] = useState([]);
 
   const handleLogout = () => {
     logout();
@@ -157,15 +72,15 @@ const RescueTeamDashboard = () => {
   };
 
   /* Filter table data */
-  const filtered = MOCK_REQUESTS.filter((r) => {
+  const filtered = rescueRequests.filter((r) => {
     const okPriority = priorityFilter === 'All' || r.priority === priorityFilter;
     const okStatus   = statusFilter   === 'All' || r.status   === statusFilter;
     return okPriority && okStatus;
   });
 
-  const pendingCount   = MOCK_REQUESTS.filter((r) => r.status === 'Pending').length;
-  const enRouteCount   = MOCK_REQUESTS.filter((r) => r.status === 'En Route').length;
-  const completedCount = MOCK_REQUESTS.filter((r) => r.status === 'Completed').length;
+  const pendingCount   = rescueRequests.filter((r) => r.status === 'Pending').length;
+  const enRouteCount   = rescueRequests.filter((r) => r.status === 'En Route').length;
+  const completedCount = rescueRequests.filter((r) => r.status === 'Completed').length;
 
   /* nav items */
   const NAV_ITEMS = [
@@ -177,8 +92,16 @@ const RescueTeamDashboard = () => {
 
       {/* ── Full-width Top Navbar ── */}
       <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-8 flex-shrink-0 z-30 w-full">
-        {/* Brand Logo */}
-        <div className="flex items-center gap-2 select-none shrink-0">
+        {/* Brand Logo & Sidebar Toggle */}
+        <div className="flex items-center gap-3 select-none shrink-0">
+          <button
+            onClick={toggleSidebar}
+            className="p-2 -ml-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            aria-label="Toggle Sidebar"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <img src="/logo.png" alt="ResQNet Logo" className="h-9 w-auto object-contain" />
         </div>
 
@@ -234,8 +157,12 @@ const RescueTeamDashboard = () => {
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── Sidebar ── */}
-        <aside className="w-64 bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-y-auto shrink-0">
-          <nav className="p-4 space-y-1.5">
+        <aside
+          className={`${
+            sidebarOpen ? 'w-64' : 'w-20'
+          } bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-y-auto shrink-0 transition-all duration-300 ease-in-out`}
+        >
+          <nav className={`${sidebarOpen ? 'p-4' : 'p-3'} space-y-1.5`}>
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.name;
@@ -243,34 +170,59 @@ const RescueTeamDashboard = () => {
                 <button
                   key={item.name}
                   onClick={() => setActiveTab(item.name)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                  title={!sidebarOpen ? item.name : undefined}
+                  className={`w-full flex items-center ${
+                    sidebarOpen ? 'justify-between px-4' : 'justify-center px-0'
+                  } py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer relative group ${
                     isActive
                       ? 'bg-[#237737] text-white shadow-md shadow-[#237737]/10'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                    <span>{item.name}</span>
+                  <div className={`flex items-center ${sidebarOpen ? 'gap-3 min-w-0' : 'justify-center'}`}>
+                    <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                    {sidebarOpen && <span className="truncate whitespace-nowrap">{item.name}</span>}
                   </div>
-                  {item.badge && !isActive && (
-                    <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  {sidebarOpen && item.badge && !isActive && (
+                    <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
                       {item.badge}
                     </span>
+                  )}
+                  {!sidebarOpen && item.badge && !isActive && (
+                    <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full" />
                   )}
                 </button>
               );
             })}
           </nav>
 
-          {/* Logout */}
-          <div className="p-4 border-t border-slate-100">
+          {/* Sidebar Footer */}
+          <div className={`${sidebarOpen ? 'p-4' : 'p-3'} border-t border-slate-100 space-y-1`}>
+            <button
+              onClick={toggleSidebar}
+              className={`w-full flex items-center ${
+                sidebarOpen ? 'gap-3 px-4' : 'justify-center px-0'
+              } py-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl text-xs font-semibold transition cursor-pointer`}
+              title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              {sidebarOpen ? (
+                <>
+                  <ChevronLeft className="w-4 h-4 flex-shrink-0 text-slate-400" />
+                  <span className="whitespace-nowrap">Collapse Sidebar</span>
+                </>
+              ) : (
+                <ChevronRight className="w-5 h-5 flex-shrink-0 text-slate-400" />
+              )}
+            </button>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-rose-600 rounded-xl text-sm font-semibold transition cursor-pointer"
+              className={`w-full flex items-center ${
+                sidebarOpen ? 'gap-3 px-4' : 'justify-center px-0'
+              } py-3 text-slate-600 hover:text-rose-600 hover:bg-rose-50/50 rounded-xl text-sm font-semibold transition cursor-pointer`}
+              title={!sidebarOpen ? 'Log Out' : undefined}
             >
-              <LogOut className="w-4 h-4 text-slate-500 hover:text-rose-500" />
-              <span>Log Out</span>
+              <LogOut className="w-5 h-5 flex-shrink-0 text-slate-500 hover:text-rose-500" />
+              {sidebarOpen && <span className="whitespace-nowrap">Log Out</span>}
             </button>
           </div>
         </aside>
@@ -451,11 +403,11 @@ const RescueTeamDashboard = () => {
                     </button>
                   </div>
                   <div className="p-5 space-y-4">
-                    {ACTIVITY_TIMELINE.map((item, i) => (
+                    {activityTimeline.map((item, i) => (
                       <div key={i} className="flex items-start gap-3">
                         <div className="flex flex-col items-center gap-1 flex-shrink-0">
                           <span className={`w-2.5 h-2.5 rounded-full ${item.color} flex-shrink-0 mt-0.5`} />
-                          {i < ACTIVITY_TIMELINE.length - 1 && (
+                          {i < activityTimeline.length - 1 && (
                             <div className="w-px h-5 bg-slate-100" />
                           )}
                         </div>
@@ -467,6 +419,12 @@ const RescueTeamDashboard = () => {
                         </div>
                       </div>
                     ))}
+
+                    {activityTimeline.length === 0 && (
+                      <div className="py-8 text-center text-slate-400 text-xs font-semibold">
+                        Standing by. No dispatch actions logged yet.
+                      </div>
+                    )}
                   </div>
                   <div className="px-5 pb-4">
                     <button className="w-full text-center text-xs font-semibold text-[#237737] hover:underline cursor-pointer flex items-center justify-center gap-1">

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Category = require('./categoryModel');
 const Animal = require('./animalModel');
 
@@ -198,7 +199,7 @@ const deleteCategory = async (req, res) => {
 // @access  Public / Authenticated
 const getAnimals = async (req, res) => {
   try {
-    const { species, status, search } = req.query;
+    const { species, status, healthCondition, search } = req.query;
     const query = { isDeleted: false };
 
     if (species && species !== 'All') {
@@ -207,6 +208,10 @@ const getAnimals = async (req, res) => {
 
     if (status && status !== 'All') {
       query.status = status;
+    }
+
+    if (healthCondition && healthCondition !== 'All') {
+      query.healthCondition = healthCondition;
     }
 
     if (search) {
@@ -219,18 +224,66 @@ const getAnimals = async (req, res) => {
       ];
     }
 
-    let animals = await Animal.find(query).sort({ createdAt: -1 });
+    let animals = await Animal.find(query)
+      .populate({
+        path: 'shelterId',
+        select: 'shelterName shelterNumber registrationNumber registrationType shelterPhoneNumber shelterEmail userId',
+        populate: { path: 'userId', select: 'city state address phoneNumber email fullName' },
+      })
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
       count: animals.length,
       data: animals,
+      animals,
     });
   } catch (error) {
     console.error('Error fetching animals:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch animals: ' + error.message,
+    });
+  }
+};
+
+// @desc    Get single animal by ID or animalId
+// @route   GET /api/animals/:id
+// @access  Public / Authenticated
+const getAnimalById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let query = { isDeleted: { $ne: true } };
+
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      query.$or = [{ _id: id }, { animalId: id }];
+    } else {
+      query.animalId = id;
+    }
+
+    const animal = await Animal.findOne(query).populate({
+      path: 'shelterId',
+      select: 'shelterName shelterNumber registrationNumber registrationType shelterPhoneNumber shelterEmail userId',
+      populate: { path: 'userId', select: 'city state address phoneNumber email fullName' },
+    });
+
+    if (!animal) {
+      return res.status(404).json({
+        success: false,
+        message: 'Animal record not found',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      animal,
+      data: animal,
+    });
+  } catch (error) {
+    console.error('Error fetching animal details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch animal details: ' + error.message,
     });
   }
 };
@@ -251,6 +304,26 @@ const createAnimal = async (req, res) => {
       healthCondition,
       status,
       photo,
+      facePhoto,
+      fullBodyPhoto,
+      photos,
+      video,
+      currentSize,
+      weight,
+      neutered,
+      spayedNeutered,
+      vaccinations,
+      vaccinationDate,
+      microchipped,
+      microchipNumber,
+      specialMedicalNeeds,
+      energyLevel,
+      training,
+      about,
+      backgroundStory,
+      shelterCity,
+      shelterState,
+      shelterRegistrationNumber,
       shelterName,
       shelterId,
     } = req.body;
@@ -262,6 +335,8 @@ const createAnimal = async (req, res) => {
       });
     }
 
+    const isNeutered = neutered !== undefined ? Boolean(neutered) : Boolean(spayedNeutered);
+
     const animal = await Animal.create({
       name: name ? name.trim() : '',
       species: species.trim(),
@@ -272,7 +347,27 @@ const createAnimal = async (req, res) => {
       cageNumber: cageNumber ? cageNumber.trim() : '',
       healthCondition: healthCondition || 'Healthy',
       status: status || 'Available',
-      photo: photo || '',
+      photo: photo || facePhoto || '',
+      facePhoto: facePhoto || photo || '',
+      fullBodyPhoto: fullBodyPhoto || '',
+      photos: Array.isArray(photos) ? photos : [],
+      video: video || '',
+      currentSize: currentSize || 'Medium',
+      weight: weight ? String(weight).trim() : '',
+      neutered: isNeutered,
+      spayedNeutered: isNeutered,
+      vaccinations: Array.isArray(vaccinations) ? vaccinations : [],
+      vaccinationDate: vaccinationDate || '',
+      microchipped: Boolean(microchipped),
+      microchipNumber: microchipNumber || '',
+      specialMedicalNeeds: specialMedicalNeeds || 'None',
+      energyLevel: energyLevel || 'Moderate',
+      training: training || 'House-trained, Basic commands',
+      about: about ? about.trim() : '',
+      backgroundStory: backgroundStory ? backgroundStory.trim() : '',
+      shelterCity: shelterCity ? shelterCity.trim() : '',
+      shelterState: shelterState ? shelterState.trim() : '',
+      shelterRegistrationNumber: shelterRegistrationNumber ? shelterRegistrationNumber.trim() : '',
       shelterName: shelterName ? shelterName.trim() : 'Central Animal Registry',
       shelterId: shelterId || null,
       userId: req.user?._id || null,
@@ -282,6 +377,7 @@ const createAnimal = async (req, res) => {
       success: true,
       message: `Animal ${animal.name ? animal.name + ' ' : ''}(${animal.animalId}) registered successfully`,
       data: animal,
+      animal,
     });
   } catch (error) {
     console.error('Error registering animal:', error);
@@ -318,7 +414,28 @@ const updateAnimal = async (req, res) => {
       'healthCondition',
       'status',
       'photo',
+      'facePhoto',
+      'fullBodyPhoto',
+      'photos',
+      'video',
+      'currentSize',
+      'weight',
+      'neutered',
+      'spayedNeutered',
+      'vaccinations',
+      'vaccinationDate',
+      'microchipped',
+      'microchipNumber',
+      'specialMedicalNeeds',
+      'energyLevel',
+      'training',
+      'about',
+      'backgroundStory',
+      'shelterCity',
+      'shelterState',
+      'shelterRegistrationNumber',
       'shelterName',
+      'shelterId',
     ];
 
     fields.forEach((f) => {
@@ -327,12 +444,20 @@ const updateAnimal = async (req, res) => {
       }
     });
 
+    if (req.body.spayedNeutered !== undefined && req.body.neutered === undefined) {
+      animal.neutered = Boolean(req.body.spayedNeutered);
+    }
+    if (req.body.neutered !== undefined && req.body.spayedNeutered === undefined) {
+      animal.spayedNeutered = Boolean(req.body.neutered);
+    }
+
     await animal.save();
 
     res.status(200).json({
       success: true,
       message: 'Animal record updated successfully',
       data: animal,
+      animal,
     });
   } catch (error) {
     console.error('Error updating animal:', error);
@@ -381,6 +506,7 @@ module.exports = {
   updateCategory,
   deleteCategory,
   getAnimals,
+  getAnimalById,
   createAnimal,
   updateAnimal,
   deleteAnimal,

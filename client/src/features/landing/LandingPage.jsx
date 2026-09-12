@@ -1,9 +1,11 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import Navbar from '../../components/common/Navbar';
-import Footer from '../../components/common/Footer';
-import { 
+import logoImage from '../../assets/logo.png';
+import goldenRetriever from '../../assets/golden-retriever.jpg';
+import { Mail, Phone, Globe, Share2, MessageSquare, ArrowUpRight, 
+	Menu, 
+	X, 
   Sparkles, 
   AlertTriangle, 
   Heart, 
@@ -22,6 +24,7 @@ import {
 } from 'lucide-react';
 
 const LandingPage = () => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -44,8 +47,138 @@ const LandingPage = () => {
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900 selection:bg-[#237737] selection:text-white flex flex-col">
       {/* Header Navigation */}
-      <Navbar />
+      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-100 transition-all">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-20">
+          
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-3 group">
+            <img
+              src={logoImage}
+              alt="ResQNet Logo"
+              className="h-10 w-auto object-contain group-hover:scale-105 transition-transform select-none"
+            />
+          </Link>
 
+          {/* Desktop Navigation Links */}
+          <nav className="hidden md:flex items-center space-x-8">
+            <a 
+              href="#features" 
+              className="text-[#4b5563] hover:text-[#237737] font-semibold text-sm transition-colors"
+            >
+              Features
+            </a>
+            <a 
+              href="#impact" 
+              className="text-[#4b5563] hover:text-[#237737] font-semibold text-sm transition-colors"
+            >
+              Impact
+            </a>
+            <a 
+              href="#stories" 
+              className="text-[#4b5563] hover:text-[#237737] font-semibold text-sm transition-colors"
+            >
+              Stories
+            </a>
+          </nav>
+
+          {/* Right Action Buttons */}
+          <div className="hidden md:flex items-center gap-4">
+            {user ? (
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="px-5 py-2.5 rounded-xl text-sm font-bold bg-[#237737] text-white hover:bg-[#1b632d] shadow-md shadow-[#237737]/20 transition-all flex items-center gap-2 cursor-pointer"
+              >
+                Go to Dashboard <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="px-4 py-2 text-sm font-bold text-[#151c28] hover:text-[#237737] transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/register"
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold bg-[#237737] text-white hover:bg-[#1b632d] shadow-md shadow-[#237737]/20 transition-all cursor-pointer"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
+          </div>
+
+          {/* Mobile Menu Button */}
+          <div className="md:hidden flex items-center">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Dropdown Menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-b border-slate-200 bg-white px-4 pt-2 pb-6 space-y-3 shadow-lg">
+          <a
+            href="#features"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block px-3 py-2 rounded-md text-base font-semibold text-slate-700 hover:bg-slate-50 hover:text-[#237737]"
+          >
+            Features
+          </a>
+          <a
+            href="#impact"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block px-3 py-2 rounded-md text-base font-semibold text-slate-700 hover:bg-slate-50 hover:text-[#237737]"
+          >
+            Impact
+          </a>
+          <a
+            href="#stories"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block px-3 py-2 rounded-md text-base font-semibold text-slate-700 hover:bg-slate-50 hover:text-[#237737]"
+          >
+            Stories
+          </a>
+          <div className="pt-4 border-t border-slate-100 flex flex-col gap-2">
+            {user ? (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  navigate('/dashboard');
+                }}
+                className="w-full text-center px-4 py-2.5 rounded-xl font-bold bg-[#237737] text-white hover:bg-[#1b632d]"
+              >
+                Go to Dashboard
+              </button>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full text-center px-4 py-2.5 rounded-xl font-bold text-[#151c28] border border-slate-200 hover:bg-slate-50"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full text-center px-4 py-2.5 rounded-xl font-bold bg-[#237737] text-white hover:bg-[#1b632d]"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </header>
       <main className="flex-grow">
         {/* HERO SECTION */}
         <section className="relative bg-gradient-to-b from-[#edf7ef]/80 via-[#f4faf5]/40 to-white pt-10 pb-20 md:pt-16 md:pb-28 overflow-hidden">
@@ -100,7 +233,7 @@ const LandingPage = () => {
                   {/* Hero Dog Image Container */}
                   <div className="relative rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white bg-slate-100 group">
                     <img
-                      src="https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?q=80&w=1000&auto=format&fit=crop"
+                      src={goldenRetriever}
                       alt="Rescued dog playing with pet toy"
                       className="w-full h-[360px] sm:h-[440px] object-cover object-center group-hover:scale-102 transition-transform duration-700"
                     />
@@ -402,36 +535,99 @@ const LandingPage = () => {
           </div>
         </section>
 
-        {/* CALL TO ACTION BANNER */}
-        <section className="py-16 bg-gradient-to-r from-[#151c28] via-[#1a2536] to-[#0f172a] text-white relative overflow-hidden">
-          <div className="max-w-5xl mx-auto px-4 text-center relative z-10 space-y-6">
-            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-              Ready to help save animals in your community?
-            </h2>
-            <p className="text-slate-300 text-base max-w-xl mx-auto">
-              Join thousands of public guardians, rescue teams, veterinarians, and shelters on ResQNet today.
-            </p>
-            <div className="flex flex-wrap justify-center gap-4 pt-2">
-              <button
-                onClick={() => navigate('/register')}
-                className="px-8 py-4 rounded-xl bg-[#237737] hover:bg-[#1b632d] text-white font-bold text-base shadow-xl shadow-[#237737]/30 transition-all cursor-pointer"
-              >
-                Create Free Account
-              </button>
-              <button
-                onClick={() => navigate('/login')}
-                className="px-8 py-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-base border border-slate-700 transition-all cursor-pointer"
-              >
-                Sign In to Portal
-              </button>
-            </div>
-          </div>
-        </section>
-
       </main>
 
       {/* Footer */}
-      <Footer />
+      <footer className="bg-[#0f172a] text-slate-300 pt-16 pb-12 border-t border-slate-800">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-12 border-b border-slate-800">
+          
+          {/* Brand Col */}
+          <div className="lg:col-span-2 space-y-4">
+            <Link to="/" className="inline-flex items-center group">
+              <div className="bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-xl inline-flex items-center shadow-md border border-white/20 group-hover:scale-105 transition-transform">
+                <img
+                  src="/logo.png"
+                  alt="ResQNet Logo"
+                  className="h-8 w-auto object-contain select-none"
+                />
+              </div>
+            </Link>
+            <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
+              Empowering communities, rescue squads, shelters, and veterinary clinics with real-time GPS tracking, AI triage, and smart IoT collars for rapid animal rescue.
+            </p>
+            <div className="flex items-center gap-3 pt-2">
+              <a href="#" className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center hover:bg-[#237737] hover:text-white transition-colors text-slate-400">
+                <Globe className="w-4 h-4" />
+              </a>
+              <a href="#" className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center hover:bg-[#237737] hover:text-white transition-colors text-slate-400">
+                <Share2 className="w-4 h-4" />
+              </a>
+              <a href="#" className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center hover:bg-[#237737] hover:text-white transition-colors text-slate-400">
+                <MessageSquare className="w-4 h-4" />
+              </a>
+              <a href="#" className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center hover:bg-[#237737] hover:text-white transition-colors text-slate-400">
+                <Heart className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+
+          {/* Quick Links */}
+          <div>
+            <h4 className="text-white font-bold text-sm tracking-wider uppercase mb-4">Platform</h4>
+            <ul className="space-y-2.5 text-sm text-slate-400">
+              <li><a href="#features" className="hover:text-emerald-400 transition-colors">AI Triage System</a></li>
+              <li><a href="#features" className="hover:text-emerald-400 transition-colors">Live Rescue GPS</a></li>
+              <li><a href="#features" className="hover:text-emerald-400 transition-colors">IoT Smart Collar</a></li>
+              <li><a href="#features" className="hover:text-emerald-400 transition-colors">Shelter Directory</a></li>
+              <li><a href="#features" className="hover:text-emerald-400 transition-colors">Vet Health Records</a></li>
+            </ul>
+          </div>
+
+          {/* User Roles */}
+          <div>
+            <h4 className="text-white font-bold text-sm tracking-wider uppercase mb-4">Portals</h4>
+            <ul className="space-y-2.5 text-sm text-slate-400">
+              <li><Link to="/login" className="hover:text-emerald-400 transition-colors">Public Reporting</Link></li>
+              <li><Link to="/login" className="hover:text-emerald-400 transition-colors">Rescue Squad Access</Link></li>
+              <li><Link to="/login" className="hover:text-emerald-400 transition-colors">Shelter Management</Link></li>
+              <li><Link to="/login" className="hover:text-emerald-400 transition-colors">Veterinary Portal</Link></li>
+              <li><Link to="/login" className="hover:text-emerald-400 transition-colors">Admin Governance</Link></li>
+            </ul>
+          </div>
+
+          {/* Emergency Contact */}
+          <div>
+            <h4 className="text-white font-bold text-sm tracking-wider uppercase mb-4">Emergency Hotline</h4>
+            <ul className="space-y-3 text-sm text-slate-400">
+              <li className="flex items-start gap-2.5">
+                <Phone className="w-4 h-4 text-[#34a853] shrink-0 mt-0.5" />
+                <span>+91 9747012188<br/>(24/7 Rescue Dispatch)</span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <Mail className="w-4 h-4 text-[#34a853] shrink-0 mt-0.5" />
+                <span>resqnetinfo@gmail.com</span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <MapPin className="w-4 h-4 text-[#34a853] shrink-0 mt-0.5" />
+                <span>Kochi, Kerala</span>
+              </li>
+            </ul>
+          </div>
+
+        </div>
+
+        {/* Bottom Bar */}
+        <div className="pt-8 flex flex-col md:flex-row items-center justify-between text-xs text-slate-500 gap-4">
+          <p>© {new Date().getFullYear()} ResQNet Platform. All rights reserved. Powered by AI Triage & IoT Mesh.</p>
+          <div className="flex items-center space-x-6">
+            <a href="#" className="hover:text-slate-400 transition-colors">Privacy Policy</a>
+            <a href="#" className="hover:text-slate-400 transition-colors">Terms of Service</a>
+            <a href="#" className="hover:text-slate-400 transition-colors">Security</a>
+          </div>
+        </div>
+      </div>
+    </footer>
     </div>
   );
 };

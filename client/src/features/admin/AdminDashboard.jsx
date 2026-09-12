@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import UserProfileDropdown from '../../components/common/UserProfileDropdown';
@@ -57,6 +57,8 @@ import {
   Tag,
   Edit2,
   Layers,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { getAllApplications, reviewApplication } from '../../services/shelterApplicationService';
 import {
@@ -90,7 +92,18 @@ const AdminDashboard = () => {
 
   const [activeTab, setActiveTab] = useState('Admin Dashboard');
   const [subTab, setSubTab] = useState('Overview');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('resqnet_sidebar_open');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem('resqnet_sidebar_open', String(next));
+      return next;
+    });
+  };
   const [notifOpen, setNotifOpen] = useState(false);
 
   // Animals & Category Management State
@@ -174,89 +187,10 @@ const AdminDashboard = () => {
   const [shelterAppSearchQuery, setShelterAppSearchQuery] = useState('');
   const [shelterAppFilterStatus, setShelterAppFilterStatus] = useState('All');
 
-  // Vet Applications List
-  const [vetApplications, setVetApplications] = useState([
-    {
-      id: 'VA-001',
-      applicantName: 'Dr. Arjun Menon',
-      email: 'dr.arjun.vet@gmail.com',
-      phone: '9847123456',
-      clinicName: 'PetCare Multi-Speciality Clinic',
-      qualification: 'B.V.Sc & A.H, M.V.Sc (Surgery)',
-      registrationNumber: 'KVC-2024-8819',
-      experienceYears: 7,
-      city: 'Ernakulam',
-      status: 'Pending',
-      submittedAt: '2026-08-15',
-    },
-    {
-      id: 'VA-002',
-      applicantName: 'Dr. Ananya Sharma',
-      email: 'ananya.sharma.vets@yahoo.com',
-      phone: '9446012345',
-      clinicName: 'Govt. Veterinary Hospital, Palai',
-      qualification: 'B.V.Sc & A.H',
-      registrationNumber: 'VCI-2022-4512',
-      experienceYears: 4,
-      city: 'Kottayam',
-      status: 'Approved',
-      submittedAt: '2026-08-12',
-    },
-  ]);
-
-  // Rescue Team Applications List
-  const [rescueTeamApplications, setRescueTeamApplications] = useState([
-    {
-      id: 'RA-001',
-      teamName: 'Rapid Paws Rescue Squad',
-      teamLead: 'Rahul Varma',
-      email: 'rapidpaws.kerala@gmail.com',
-      phone: '9745123980',
-      coverageZone: 'Kottayam & Idukki Districts',
-      vehicleFleet: '1 Animal Ambulance (KL-05-AB-4512), 2 Rapid Utility Bikes',
-      memberCount: 8,
-      status: 'Pending',
-      submittedAt: '2026-08-16',
-    },
-    {
-      id: 'RA-002',
-      teamName: 'Cochin Wildlife Emergency Taskforce',
-      teamLead: 'Sandra Mathew',
-      email: 'wildlife.cochin@resqnet.org',
-      phone: '9846098712',
-      coverageZone: 'Ernakulam Coastal & Suburban',
-      vehicleFleet: '2 Specialized 4x4 Rescue Vans',
-      memberCount: 12,
-      status: 'Approved',
-      submittedAt: '2026-08-10',
-    },
-  ]);
-
-  // Volunteer Applications List
-  const [volunteerApplications, setVolunteerApplications] = useState([
-    {
-      id: 'VOL-001',
-      volunteerName: 'Gopika Krishnan',
-      email: 'gopika.k98@gmail.com',
-      phone: '9847654321',
-      interests: ['Field Rescue', 'Foster Care', 'Adoption Drives'],
-      availability: 'Weekends & On-Call Evenings',
-      city: 'Thiruvananthapuram',
-      status: 'Pending',
-      submittedAt: '2026-08-16',
-    },
-    {
-      id: 'VOL-002',
-      volunteerName: 'Mathew Thomas',
-      email: 'mathew.t.volunteer@gmail.com',
-      phone: '9447120987',
-      interests: ['Emergency Transport', 'Shelter Caretaker Support'],
-      availability: 'Full Time Volunteer',
-      city: 'Kottayam',
-      status: 'Approved',
-      submittedAt: '2026-08-11',
-    },
-  ]);
+  // Applications Lists (Live from backend or empty state)
+  const [vetApplications, setVetApplications] = useState([]);
+  const [rescueTeamApplications, setRescueTeamApplications] = useState([]);
+  const [volunteerApplications, setVolunteerApplications] = useState([]);
 
   // Filter & Search states for dedicated management tabs
   const [vetSearchQuery, setVetSearchQuery] = useState('');
@@ -480,7 +414,9 @@ const AdminDashboard = () => {
         totalStaffs: Number(addTotalStaffs || 0),
         totalCages: Number(addTotalCages || 0),
         occupiedCages: Number(addOccupiedCages || 0),
-        status: addStatus,
+        shelterStatus: addStatus || 'UNDER_MAINTENANCE',
+        currentStatus: addStatus || 'UNDER_MAINTENANCE',
+        status: 'Active',
         userId: addUserId || null,
       };
 
@@ -500,7 +436,7 @@ const AdminDashboard = () => {
           setAddTotalStaffs('');
           setAddTotalCages('');
           setAddOccupiedCages('0');
-          setAddStatus('OPEN');
+          setAddStatus('UNDER_MAINTENANCE');
           setAddUserId('');
         }, 1200);
       } else {
@@ -537,17 +473,30 @@ const AdminDashboard = () => {
 
   const handleUpdateShelterCurrentStatus = async (shelterId, newCurrentStatus) => {
     try {
-      const res = await updateShelter(shelterId, { currentStatus: newCurrentStatus });
+      const res = await updateShelter(shelterId, { 
+        shelterStatus: newCurrentStatus, 
+        currentStatus: newCurrentStatus 
+      });
       if (res.success) {
         setSheltersList(prev =>
-          prev.map(s => s._id === shelterId ? { ...s, ...res.shelter, currentStatus: newCurrentStatus } : s)
+          prev.map(s => s._id === shelterId ? { 
+            ...s, 
+            ...res.shelter, 
+            shelterStatus: newCurrentStatus,
+            currentStatus: newCurrentStatus 
+          } : s)
         );
         if (selectedShelterForModal?._id === shelterId) {
-          setSelectedShelterForModal(prev => ({ ...prev, ...res.shelter, currentStatus: newCurrentStatus }));
+          setSelectedShelterForModal(prev => ({ 
+            ...prev, 
+            ...res.shelter, 
+            shelterStatus: newCurrentStatus,
+            currentStatus: newCurrentStatus 
+          }));
         }
       }
     } catch (err) {
-      console.error('Update shelter currentStatus failed:', err.message);
+      console.error('Update shelter status failed:', err.message);
     }
   };
 
@@ -608,6 +557,8 @@ const AdminDashboard = () => {
     loadUsers();
     loadShelterApplications();
     loadShelters();
+    loadAnimals();
+    loadCategories();
   }, []);
 
   const handleLogout = () => {
@@ -990,8 +941,16 @@ const AdminDashboard = () => {
       
       {/* Full-width Top Navbar */}
       <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-8 flex-shrink-0 z-30 w-full">
-        {/* Brand Logo */}
-        <div className="flex items-center gap-2 select-none shrink-0">
+        {/* Brand Logo & Sidebar Toggle */}
+        <div className="flex items-center gap-3 select-none shrink-0">
+          <button
+            onClick={toggleSidebar}
+            className="p-2 -ml-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            aria-label="Toggle Sidebar"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <img src="/logo.png" alt="ResQNet Logo" className="h-9 w-auto object-contain" />
         </div>
 
@@ -1058,8 +1017,12 @@ const AdminDashboard = () => {
       <div className="flex flex-1 overflow-hidden">
         
         {/* Sidebar Panel (below navbar) */}
-        <aside className="w-64 bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-y-auto shrink-0">
-          <nav className="p-4 space-y-1.5">
+        <aside
+          className={`${
+            sidebarOpen ? 'w-64' : 'w-20'
+          } bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-y-auto shrink-0 transition-all duration-300 ease-in-out`}
+        >
+          <nav className={`${sidebarOpen ? 'p-4' : 'p-3'} space-y-1.5`}>
             {[
               { name: 'Admin Dashboard', icon: TrendingUp },
               { name: 'Manage Users', icon: Users },
@@ -1103,20 +1066,26 @@ const AdminDashboard = () => {
                       loadShelterApplications();
                     }
                   }}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                  title={!sidebarOpen ? item.name : undefined}
+                  className={`w-full flex items-center ${
+                    sidebarOpen ? 'justify-between px-4' : 'justify-center px-0'
+                  } py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer relative group ${
                     isActive
                       ? 'bg-[#237737] text-white shadow-md shadow-[#237737]/10'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <IconComponent className={`w-4.5 h-4.5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                    <span>{item.name}</span>
+                  <div className={`flex items-center ${sidebarOpen ? 'gap-3 min-w-0' : 'justify-center'}`}>
+                    <IconComponent className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                    {sidebarOpen && <span className="truncate whitespace-nowrap">{item.name}</span>}
                   </div>
-                  {item.badge && !isActive && (
-                    <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  {sidebarOpen && item.badge && !isActive && (
+                    <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
                       {item.badge}
                     </span>
+                  )}
+                  {!sidebarOpen && item.badge && !isActive && (
+                    <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full" />
                   )}
                 </button>
               );
@@ -1124,13 +1093,32 @@ const AdminDashboard = () => {
           </nav>
 
           {/* Sidebar Footer */}
-          <div className="p-4 border-t border-slate-100">
+          <div className={`${sidebarOpen ? 'p-4' : 'p-3'} border-t border-slate-100 space-y-1`}>
+            <button
+              onClick={toggleSidebar}
+              className={`w-full flex items-center ${
+                sidebarOpen ? 'gap-3 px-4' : 'justify-center px-0'
+              } py-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl text-xs font-semibold transition cursor-pointer`}
+              title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              {sidebarOpen ? (
+                <>
+                  <ChevronLeft className="w-4 h-4 flex-shrink-0 text-slate-400" />
+                  <span className="whitespace-nowrap">Collapse Sidebar</span>
+                </>
+              ) : (
+                <ChevronRight className="w-5 h-5 flex-shrink-0 text-slate-400" />
+              )}
+            </button>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-rose-600 rounded-xl text-sm font-semibold transition cursor-pointer"
+              className={`w-full flex items-center ${
+                sidebarOpen ? 'gap-3 px-4' : 'justify-center px-0'
+              } py-3 text-slate-600 hover:text-rose-600 hover:bg-rose-50/50 rounded-xl text-sm font-semibold transition cursor-pointer`}
+              title={!sidebarOpen ? 'Log Out' : undefined}
             >
-              <LogOut className="w-4.5 h-4.5 text-slate-500 hover:text-rose-500" />
-              <span>Log Out</span>
+              <LogOut className="w-5 h-5 flex-shrink-0 text-slate-500 hover:text-rose-500" />
+              {sidebarOpen && <span className="whitespace-nowrap">Log Out</span>}
             </button>
           </div>
         </aside>
@@ -1276,156 +1264,168 @@ const AdminDashboard = () => {
           </div>
 
           {/* Metric Cards Row (Overview) */}
-          {subTab === 'Overview' && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              
-              {/* Metric 1 - Real User Count */}
-              <div className="p-5 bg-white border border-slate-100/80 rounded-2xl flex items-center gap-4.5 shadow-sm hover:shadow-md transition-shadow">
-                <div className="p-3 bg-blue-500/10 text-blue-600 rounded-xl flex-shrink-0">
-                  <Users className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Users</div>
-                  <div className="text-2xl font-black text-slate-900 mt-0.5">
-                    {userStats.totalUsers > 0 ? userStats.totalUsers.toLocaleString() : usersList.length.toLocaleString()}
-                  </div>
-                  <span className="text-[10px] text-emerald-600 font-bold flex items-center mt-1">
-                    {userStats.signupsThisMonth > 0
-                      ? `↑ ${userStats.signupsThisMonth} new this month`
-                      : `${userStats.activeUsers || usersList.filter(u => u.status === 'Active').length} active registered`}
-                  </span>
-                </div>
-              </div>
+          {subTab === 'Overview' && (() => {
+            const dogCount = animalsList.filter(a => a.species === 'Dog').length;
+            const catCount = animalsList.filter(a => a.species === 'Cat').length;
+            const birdCount = animalsList.filter(a => a.species === 'Bird').length;
+            const otherCount = animalsList.filter(a => !['Dog', 'Cat', 'Bird'].includes(a.species)).length;
+            const totalAnm = animalsList.length || 1;
+            const dogPct = animalsList.length > 0 ? Math.round((dogCount / totalAnm) * 100) : 0;
+            const catPct = animalsList.length > 0 ? Math.round((catCount / totalAnm) * 100) : 0;
+            const birdPct = animalsList.length > 0 ? Math.round((birdCount / totalAnm) * 100) : 0;
+            const otherPct = animalsList.length > 0 ? Math.max(0, 100 - dogPct - catPct - birdPct) : 0;
 
-              {/* Metric 2 */}
-              <div className="p-5 bg-white border border-slate-100/80 rounded-2xl flex items-center gap-4.5 shadow-sm hover:shadow-md transition-shadow">
-                <div className="p-3 bg-amber-500/10 text-amber-600 rounded-xl flex-shrink-0">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Rescue Requests</div>
-                  <div className="text-2xl font-black text-slate-900 mt-0.5">4,280</div>
-                  <span className="text-[10px] text-emerald-600 font-bold flex items-center mt-1">↑ 420 this month</span>
-                </div>
-              </div>
-
-              {/* Metric 3 */}
-              <div className="p-5 bg-white border border-slate-100/80 rounded-2xl flex items-center gap-4.5 shadow-sm hover:shadow-md transition-shadow">
-                <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-xl flex-shrink-0">
-                  <CheckCircle2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Animals Rescued</div>
-                  <div className="text-2xl font-black text-slate-900 mt-0.5">12,480</div>
-                  <span className="text-[10px] text-emerald-600 font-bold flex items-center mt-1">↑ 380 this month</span>
-                </div>
-              </div>
-
-              {/* Metric 4 */}
-              <div className="p-5 bg-white border border-slate-100/80 rounded-2xl flex items-center gap-4.5 shadow-sm hover:shadow-md transition-shadow">
-                <div className="p-3 bg-rose-500/10 text-rose-600 rounded-xl flex-shrink-0">
-                  <Heart className="w-5 h-5 fill-rose-500/10" />
-                </div>
-                <div>
-                  <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Adoptions</div>
-                  <div className="text-2xl font-black text-slate-900 mt-0.5">8,920</div>
-                  <span className="text-[10px] text-emerald-600 font-bold flex items-center mt-1">↑ 130 this month</span>
-                </div>
-              </div>
-
-            </div>
-          )}
-
-          {/* Sub-Tab 1: Overview Dashboard Content */}
-          {subTab === 'Overview' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
-              {/* Analytics Card */}
-              <div className="lg:col-span-2 bg-white border border-slate-100/90 rounded-3xl p-6 shadow-sm space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-extrabold text-slate-900 text-base">Monthly Rescues & Outcomes</h3>
-                    <p className="text-xs text-slate-400 font-medium mt-0.5">Jan - Aug 2026 volume trend</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#237737]" /> Rescued
-                    </span>
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-300" /> Adopted
-                    </span>
-                  </div>
-                </div>
-
-                {/* Minimalist Bar Chart Representation */}
-                <div className="h-64 flex items-end justify-between gap-3 pt-6 px-2">
-                  {[
-                    { month: 'Jan', rescues: 65, adoptions: 40 },
-                    { month: 'Feb', rescues: 75, adoptions: 48 },
-                    { month: 'Mar', rescues: 85, adoptions: 55 },
-                    { month: 'Apr', rescues: 70, adoptions: 50 },
-                    { month: 'May', rescues: 90, adoptions: 68 },
-                    { month: 'Jun', rescues: 100, adoptions: 75 },
-                    { month: 'Jul', rescues: 110, adoptions: 82 },
-                    { month: 'Aug', rescues: 95, adoptions: 70 },
-                  ].map((data, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                      <div className="w-full flex items-end justify-center gap-1.5 h-full">
-                        <div 
-                          className="w-1/2 bg-[#237737] rounded-t-lg transition-all duration-300 group-hover:bg-[#1d632e]" 
-                          style={{ height: `${data.rescues}%` }}
-                        />
-                        <div 
-                          className="w-1/2 bg-emerald-200 rounded-t-lg transition-all duration-300 group-hover:bg-emerald-300" 
-                          style={{ height: `${data.adoptions}%` }}
-                        />
-                      </div>
-                      <span className="text-[11px] font-bold text-slate-400">{data.month}</span>
+            return (
+              <>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Metric 1 - Real User Count */}
+                  <div className="p-5 bg-white border border-slate-100/80 rounded-2xl flex items-center gap-4.5 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="p-3 bg-blue-500/10 text-blue-600 rounded-xl flex-shrink-0">
+                      <Users className="w-5 h-5" />
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <div>
+                      <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Users</div>
+                      <div className="text-2xl font-black text-slate-900 mt-0.5">
+                        {userStats.totalUsers > 0 ? userStats.totalUsers.toLocaleString() : usersList.length.toLocaleString()}
+                      </div>
+                      <span className="text-[10px] text-emerald-600 font-bold flex items-center mt-1">
+                        {userStats.signupsThisMonth > 0
+                          ? `↑ ${userStats.signupsThisMonth} new this month`
+                          : `${userStats.activeUsers || usersList.filter(u => u.status === 'Active').length} active registered`}
+                      </span>
+                    </div>
+                  </div>
 
-              {/* Pie Chart Representation */}
-              <div className="bg-white border border-slate-100/90 rounded-3xl p-6 shadow-sm flex flex-col justify-between space-y-6">
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-base">Species Breakdown</h3>
-                  <p className="text-xs text-slate-400 font-medium mt-0.5">Distribution of rescued animals</p>
+                  {/* Metric 2 - Shelter Applications */}
+                  <div className="p-5 bg-white border border-slate-100/80 rounded-2xl flex items-center gap-4.5 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="p-3 bg-amber-500/10 text-amber-600 rounded-xl flex-shrink-0">
+                      <ClipboardList className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Applications</div>
+                      <div className="text-2xl font-black text-slate-900 mt-0.5">{shelterApplications.length}</div>
+                      <span className="text-[10px] text-amber-600 font-bold flex items-center mt-1">
+                        {shelterApplications.filter(a => (a.applicationStatus || a.status) === 'Pending').length} pending review
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Metric 3 - Registered Shelters */}
+                  <div className="p-5 bg-white border border-slate-100/80 rounded-2xl flex items-center gap-4.5 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="p-3 bg-emerald-500/10 text-emerald-600 rounded-xl flex-shrink-0">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Registered Shelters</div>
+                      <div className="text-2xl font-black text-slate-900 mt-0.5">{sheltersList.length}</div>
+                      <span className="text-[10px] text-emerald-600 font-bold flex items-center mt-1">
+                        {sheltersList.filter(s => (s.shelterStatus || s.currentStatus) === 'OPEN').length} active open
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Metric 4 - Registered Animals */}
+                  <div className="p-5 bg-white border border-slate-100/80 rounded-2xl flex items-center gap-4.5 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="p-3 bg-rose-500/10 text-rose-600 rounded-xl flex-shrink-0">
+                      <Dog className="w-5 h-5 text-rose-600" />
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Animals In Care</div>
+                      <div className="text-2xl font-black text-slate-900 mt-0.5">{animalsList.length}</div>
+                      <span className="text-[10px] text-emerald-600 font-bold flex items-center mt-1">
+                        {animalsList.filter(a => a.healthCondition === 'Healthy' || a.status === 'Ready for Adoption').length} healthy / adoptable
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-center py-4">
-                  <div className="relative w-40 h-40">
-                    <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#22c55e" strokeWidth="4.2" strokeDasharray="48 52" strokeDashoffset="100" />
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#3b82f6" strokeWidth="4.2" strokeDasharray="32 68" strokeDashoffset="52" />
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f97316" strokeWidth="4.2" strokeDasharray="12 88" strokeDashoffset="20" />
-                      <circle cx="18" cy="18" r="15.915" fill="none" stroke="#a855f7" strokeWidth="4.2" strokeDasharray="8 92" strokeDashoffset="8" />
-                    </svg>
+                {/* Sub-Tab 1: Overview Dashboard Content */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Analytics Card */}
+                  <div className="lg:col-span-2 bg-white border border-slate-100/90 rounded-3xl p-6 shadow-sm space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-extrabold text-slate-900 text-base">Facility Activity & Records</h3>
+                        <p className="text-xs text-slate-400 font-medium mt-0.5">Live platform registry overview</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#237737]" /> Registered Animals ({animalsList.length})
+                        </span>
+                        <span className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Shelters ({sheltersList.length})
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
+                      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="text-xs font-bold text-slate-400">Total Registered Animals</div>
+                        <div className="text-2xl font-black text-slate-800 mt-1">{animalsList.length}</div>
+                        <div className="text-[10px] font-semibold text-slate-500 mt-1">Across all partner shelters</div>
+                      </div>
+                      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="text-xs font-bold text-slate-400">Animal Categories</div>
+                        <div className="text-2xl font-black text-[#237737] mt-1">{animalCategories.length}</div>
+                        <div className="text-[10px] font-semibold text-slate-500 mt-1">Configured classifications</div>
+                      </div>
+                      <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="text-xs font-bold text-slate-400">Partner Shelters</div>
+                        <div className="text-2xl font-black text-blue-600 mt-1">{sheltersList.length}</div>
+                        <div className="text-[10px] font-semibold text-slate-500 mt-1">Statewide network</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pie Chart Representation */}
+                  <div className="bg-white border border-slate-100/90 rounded-3xl p-6 shadow-sm flex flex-col justify-between space-y-6">
+                    <div>
+                      <h3 className="font-extrabold text-slate-900 text-base">Species Breakdown</h3>
+                      <p className="text-xs text-slate-400 font-medium mt-0.5">Distribution of rescued animals in database</p>
+                    </div>
+
+                    {animalsList.length > 0 ? (
+                      <>
+                        <div className="flex items-center justify-center py-2">
+                          <div className="relative w-36 h-36">
+                            <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
+                              <circle cx="18" cy="18" r="15.915" fill="none" stroke="#22c55e" strokeWidth="4.2" strokeDasharray={`${dogPct} ${100 - dogPct}`} strokeDashoffset="100" />
+                              <circle cx="18" cy="18" r="15.915" fill="none" stroke="#3b82f6" strokeWidth="4.2" strokeDasharray={`${catPct} ${100 - catPct}`} strokeDashoffset={`${100 - dogPct}`} />
+                              <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f97316" strokeWidth="4.2" strokeDasharray={`${birdPct} ${100 - birdPct}`} strokeDashoffset={`${100 - dogPct - catPct}`} />
+                              <circle cx="18" cy="18" r="15.915" fill="none" stroke="#a855f7" strokeWidth="4.2" strokeDasharray={`${otherPct} ${100 - otherPct}`} strokeDashoffset={`${100 - dogPct - catPct - birdPct}`} />
+                            </svg>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 pt-4 border-t border-slate-100 text-xs font-bold text-slate-500">
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Dogs</span>
+                            <span className="text-slate-900">{dogCount} ({dogPct}%)</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Cats</span>
+                            <span className="text-slate-900">{catCount} ({catPct}%)</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-500" /> Birds</span>
+                            <span className="text-slate-900">{birdCount} ({birdPct}%)</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-purple-500" /> Others</span>
+                            <span className="text-slate-900">{otherCount} ({otherPct}%)</span>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="py-8 text-center text-slate-400 text-xs font-semibold">
+                        No animals registered in database yet.
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                <div className="space-y-2 pt-4 border-t border-slate-100 text-xs font-bold text-slate-500">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Dogs</span>
-                    <span className="text-slate-900">48%</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Cats</span>
-                    <span className="text-slate-900">32%</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-500" /> Birds</span>
-                    <span className="text-slate-900">12%</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-purple-500" /> Others</span>
-                    <span className="text-slate-900">8%</span>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          )}
+              </>
+            );
+          })()}
 
           {/* Sub-Tab 2: Real User Management Panel */}
           {(subTab === 'Manage Users' || subTab === 'User Management') && (
@@ -1898,11 +1898,12 @@ const AdminDashboard = () => {
                             const matchStatus =
                               shelterFilterStatus === 'All' ||
                               s.status === shelterFilterStatus ||
+                              s.shelterStatus === shelterFilterStatus ||
                               s.currentStatus === shelterFilterStatus;
                             return matchSearch && matchStatus;
                           })
                           .map((shelter) => {
-                            const operationalStatus = shelter.currentStatus || shelter.status || 'OPEN';
+                            const operationalStatus = shelter.shelterStatus || shelter.currentStatus || 'UNDER_MAINTENANCE';
                             const operationalClass =
                               operationalStatus === 'OPEN'
                                 ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200/60'
@@ -2049,24 +2050,24 @@ const AdminDashboard = () => {
                 <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
                   <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pending Review</div>
                   <div className="text-2xl font-black text-amber-600 mt-1">
-                    {[...shelterApplications, ...vetApplications, ...rescueTeamApplications, ...volunteerApplications].filter(a => a.status === 'Pending').length}
+                    {[...shelterApplications, ...vetApplications, ...rescueTeamApplications, ...volunteerApplications].filter(a => (a.applicationStatus || a.status) === 'Pending').length}
                   </div>
                   <div className="text-[10px] font-bold text-amber-600 mt-0.5">Awaiting site visit / review</div>
                 </div>
                 <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
                   <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Site Visits Active</div>
                   <div className="text-2xl font-black text-blue-600 mt-1">
-                    {shelterApplications.filter(a => a.status === 'Site Visit').length}
+                    {shelterApplications.filter(a => (a.applicationStatus || a.status) === 'Site Visit').length}
                   </div>
                   <div className="text-[10px] font-bold text-blue-600 mt-0.5">Valuation period scheduled</div>
                 </div>
                 <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
                   <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Processed</div>
                   <div className="text-2xl font-black text-emerald-600 mt-1">
-                    {[...shelterApplications, ...vetApplications, ...rescueTeamApplications, ...volunteerApplications].filter(a => a.status === 'Approved').length}
+                    {[...shelterApplications, ...vetApplications, ...rescueTeamApplications, ...volunteerApplications].filter(a => (a.applicationStatus || a.status) === 'Approved').length}
                   </div>
                   <div className="text-[10px] font-bold text-slate-400 mt-0.5">
-                    {[...shelterApplications, ...vetApplications, ...rescueTeamApplications, ...volunteerApplications].filter(a => a.status === 'Rejected').length} rejected
+                    {[...shelterApplications, ...vetApplications, ...rescueTeamApplications, ...volunteerApplications].filter(a => (a.applicationStatus || a.status) === 'Rejected').length} rejected
                   </div>
                 </div>
               </div>
@@ -2103,8 +2104,8 @@ const AdminDashboard = () => {
                     {/* Status Filter Pills */}
                     <div className="flex items-center gap-1.5 overflow-x-auto py-1">
                       {['All', 'Pending', 'Site Visit', 'Approved', 'Rejected'].map((st) => {
-                        const pendingCount = [...shelterApplications, ...vetApplications, ...rescueTeamApplications, ...volunteerApplications].filter(a => a.status === 'Pending').length;
-                        const siteVisitCount = shelterApplications.filter(a => a.status === 'Site Visit').length;
+                        const pendingCount = [...shelterApplications, ...vetApplications, ...rescueTeamApplications, ...volunteerApplications].filter(a => (a.applicationStatus || a.status) === 'Pending').length;
+                        const siteVisitCount = shelterApplications.filter(a => (a.applicationStatus || a.status) === 'Site Visit').length;
 
                         return (
                           <button
@@ -2137,15 +2138,15 @@ const AdminDashboard = () => {
                     <span className="text-xs text-slate-400 font-extrabold">
                       {(() => {
                         const all = [
-                          ...shelterApplications.map(a => ({ ...a, _appType: 'Shelter', _name: a.shelterName, _contact: a.applicantId?.email || a.userId?.email || a.shelterEmail, _id2: a.shelterApplicationId })),
-                          ...vetApplications.map(a => ({ ...a, _appType: 'Vet', _name: a.applicantName, _contact: a.email, _id2: a.id })),
-                          ...rescueTeamApplications.map(a => ({ ...a, _appType: 'Rescue', _name: a.teamName, _contact: a.email, _id2: a.id })),
-                          ...volunteerApplications.map(a => ({ ...a, _appType: 'Volunteer', _name: a.volunteerName, _contact: a.email, _id2: a.id })),
+                          ...shelterApplications.map(a => ({ ...a, _appType: 'Shelter', _name: a.shelterName, _contact: a.applicantId?.email || a.userId?.email || a.shelterEmail, _id2: a.shelterApplicationId, _status: a.applicationStatus || a.status })),
+                          ...vetApplications.map(a => ({ ...a, _appType: 'Vet', _name: a.applicantName, _contact: a.email, _id2: a.id, _status: a.status })),
+                          ...rescueTeamApplications.map(a => ({ ...a, _appType: 'Rescue', _name: a.teamName, _contact: a.email, _id2: a.id, _status: a.status })),
+                          ...volunteerApplications.map(a => ({ ...a, _appType: 'Volunteer', _name: a.volunteerName, _contact: a.email, _id2: a.id, _status: a.status })),
                         ];
                         const q = shelterAppSearchQuery.toLowerCase().trim();
                         return all.filter(a => {
                           const matchType = applicationsCategoryTab === 'All' || a._appType === applicationsCategoryTab;
-                          const matchStatus = shelterAppFilterStatus === 'All' || a.status === shelterAppFilterStatus;
+                          const matchStatus = shelterAppFilterStatus === 'All' || a._status === shelterAppFilterStatus;
                           const matchSearch = !q || a._name?.toLowerCase().includes(q) || a._contact?.toLowerCase().includes(q) || a._id2?.toLowerCase().includes(q);
                           return matchType && matchStatus && matchSearch;
                         }).length;
@@ -2441,13 +2442,17 @@ const AdminDashboard = () => {
 
                 <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
                   <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Partner Clinics</div>
-                  <div className="text-2xl font-black text-blue-600 mt-1">12</div>
-                  <div className="text-[10px] font-bold text-blue-600 mt-0.5">Affiliated Hospitals</div>
+                  <div className="text-2xl font-black text-blue-600 mt-1">
+                    {usersList.filter((u) => u.role === 'Veterinary Staff').length}
+                  </div>
+                  <div className="text-[10px] font-bold text-blue-600 mt-0.5">Affiliated Clinics</div>
                 </div>
 
                 <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Emergency 24x7</div>
-                  <div className="text-2xl font-black text-purple-600 mt-1">6</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Emergency Duty</div>
+                  <div className="text-2xl font-black text-purple-600 mt-1">
+                    {usersList.filter((u) => u.role === 'Veterinary Staff' && u.status === 'Active').length}
+                  </div>
                   <div className="text-[10px] font-bold text-purple-600 mt-0.5">On-Call Specialists</div>
                 </div>
               </div>
@@ -2593,21 +2598,27 @@ const AdminDashboard = () => {
                 </div>
 
                 <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Field Operatives</div>
-                  <div className="text-2xl font-black text-emerald-600 mt-1">34</div>
-                  <div className="text-[10px] font-bold text-emerald-600 mt-0.5">Active Responders</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Responders</div>
+                  <div className="text-2xl font-black text-emerald-600 mt-1">
+                    {usersList.filter((u) => u.role === 'Rescue Team' && u.status === 'Active').length}
+                  </div>
+                  <div className="text-[10px] font-bold text-emerald-600 mt-0.5">Ready for Dispatch</div>
                 </div>
 
                 <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ambulance Fleet</div>
-                  <div className="text-2xl font-black text-amber-600 mt-1">8</div>
-                  <div className="text-[10px] font-bold text-amber-600 mt-0.5">Specialized Vans & Bikes</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Registered Units</div>
+                  <div className="text-2xl font-black text-amber-600 mt-1">
+                    {usersList.filter((u) => u.role === 'Rescue Team').length}
+                  </div>
+                  <div className="text-[10px] font-bold text-amber-600 mt-0.5">Specialized Teams</div>
                 </div>
 
                 <div className="bg-white border border-slate-100 rounded-2xl p-4.5 shadow-sm">
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Avg Response Time</div>
-                  <div className="text-2xl font-black text-purple-600 mt-1">12m</div>
-                  <div className="text-[10px] font-bold text-purple-600 mt-0.5">From Triage to Dispatch</div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Coverage Status</div>
+                  <div className="text-2xl font-black text-purple-600 mt-1">
+                    {usersList.some((u) => u.role === 'Rescue Team' && u.status === 'Active') ? 'Active' : 'Standby'}
+                  </div>
+                  <div className="text-[10px] font-bold text-purple-600 mt-0.5">24x7 Emergency Grid</div>
                 </div>
               </div>
 

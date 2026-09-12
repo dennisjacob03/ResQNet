@@ -50,6 +50,111 @@ const animalSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    // Media
+    photo: {
+      type: String,
+      default: '',
+    },
+    facePhoto: {
+      type: String,
+      default: '',
+    },
+    fullBodyPhoto: {
+      type: String,
+      default: '',
+    },
+    photos: {
+      type: [String],
+      default: [],
+    },
+    video: {
+      type: String,
+      default: '',
+    },
+    // Physical & Demographics
+    currentSize: {
+      type: String,
+      enum: ['Small', 'Medium', 'Large', 'Extra Large', ''],
+      default: 'Medium',
+    },
+    weight: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    // Altered & Medical Status
+    neutered: {
+      type: Boolean,
+      default: false,
+    },
+    spayedNeutered: {
+      type: Boolean,
+      default: false,
+    },
+    vaccinations: [
+      {
+        name: { type: String, default: '' },
+        date: { type: String, default: '' },
+        status: { type: String, default: 'Completed' },
+      },
+    ],
+    vaccinationDate: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    microchipped: {
+      type: Boolean,
+      default: false,
+    },
+    microchipNumber: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    specialMedicalNeeds: {
+      type: String,
+      default: 'None',
+      trim: true,
+    },
+    // Behavioral & Training
+    energyLevel: {
+      type: String,
+      enum: ['Calm', 'Low', 'Moderate', 'High', 'Very High', ''],
+      default: 'Moderate',
+    },
+    training: {
+      type: String,
+      default: 'House-trained, Basic commands',
+      trim: true,
+    },
+    // Story & Descriptions
+    about: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    backgroundStory: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    // Shelter Information
+    shelterCity: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    shelterState: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    shelterRegistrationNumber: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     cageNumber: {
       type: String,
       default: '',
@@ -62,12 +167,8 @@ const animalSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Available', 'Rescued', 'Adopted', 'Under Treatment', 'Critical', 'Released', 'Dead'],
+      enum: ['Available', 'Adoption Pending', 'Adopted', 'Rescued', 'Under Treatment', 'Critical', 'Released', 'Dead'],
       default: 'Available',
-    },
-    photo: {
-      type: String,
-      default: '',
     },
     isDeleted: {
       type: Boolean,

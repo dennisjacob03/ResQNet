@@ -7,28 +7,28 @@ const shelterAssignmentSchema = new mongoose.Schema(
       unique: true,
     },
     shelterId: {
-      type: String,
-      required: [true, 'Shelter ID is required'],
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'Shelter',
+      required: [true, 'Shelter reference is required'],
     },
     animalId: {
-      type: String,
-      required: [true, 'Animal ID is required'],
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'Animal',
+      required: [true, 'Animal reference is required'],
     },
     cageId: {
-      type: String,
-      required: [true, 'Cage ID is required'],
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'Cage',
+      default: null,
     },
     animalCategoryId: {
-      type: String,
-      required: [true, 'Animal category ID is required'],
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'Category',
+      default: null,
     },
     arrivalDate: {
       type: Date,
-      required: [true, 'Arrival date is required'],
+      default: Date.now,
     },
     releaseDate: {
       type: Date,
@@ -45,7 +45,7 @@ const shelterAssignmentSchema = new mongoose.Schema(
   }
 );
 
-// Auto-generate shelterAssignmentId (e.g. SA-0001) before save
+// Auto-generate shelterAssignmentId (e.g. SHA-0001) before save
 shelterAssignmentSchema.pre('save', async function () {
   if (!this.shelterAssignmentId) {
     const records = await mongoose
@@ -56,7 +56,7 @@ shelterAssignmentSchema.pre('save', async function () {
     let maxSeq = 0;
     records.forEach((r) => {
       if (r.shelterAssignmentId) {
-        const match = r.shelterAssignmentId.match(/^SA-(\d+)$/i);
+        const match = r.shelterAssignmentId.match(/^SHA-(\d+)$/i);
         if (match) {
           const num = parseInt(match[1], 10);
           if (num > maxSeq) maxSeq = num;
@@ -64,7 +64,7 @@ shelterAssignmentSchema.pre('save', async function () {
       }
     });
 
-    this.shelterAssignmentId = `SA-${String(maxSeq + 1).padStart(4, '0')}`;
+    this.shelterAssignmentId = `SHA-${String(maxSeq + 1).padStart(4, '0')}`;
   }
 });
 

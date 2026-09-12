@@ -73,7 +73,7 @@ const shelterSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
-    currentStatus: {
+    shelterStatus: {
       type: String,
       enum: ['OPEN', 'FULL', 'UNDER_MAINTENANCE', 'CLOSED'],
       default: 'UNDER_MAINTENANCE',

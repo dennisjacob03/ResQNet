@@ -23,7 +23,9 @@ import {
   Stethoscope,
   BookOpen,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 const VetDashboard = () => {
@@ -32,7 +34,18 @@ const VetDashboard = () => {
 
   const [activeTab, setActiveTab] = useState('Vet Dashboard');
   const [subTab, setSubTab] = useState('Medical Records');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('resqnet_sidebar_open');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem('resqnet_sidebar_open', String(next));
+      return next;
+    });
+  };
   const [notifOpen, setNotifOpen] = useState(false);
 
   // Form state for adding new record
@@ -44,62 +57,14 @@ const VetDashboard = () => {
   const [newNextVisit, setNewNextVisit] = useState('');
   const [newStatus, setNewStatus] = useState('Ongoing');
 
-  // Mock Medical Cases Data
-  const [medicalCases, setMedicalCases] = useState([
-    {
-      id: 'MC-301',
-      patient: 'Bruno',
-      species: 'Dog',
-      diagnosis: 'Lacerated paw — surgical closure',
-      vet: 'Dr. Priya K.',
-      nextVisit: 'Aug 5',
-      status: 'Ongoing',
-      statusColor: 'bg-amber-500/10 text-amber-700 border-amber-200/50',
-    },
-    {
-      id: 'MC-302',
-      patient: 'Max',
-      species: 'Dog',
-      diagnosis: 'Fracture — right femur, splint applied',
-      vet: 'Dr. Rahul S.',
-      nextVisit: 'Aug 7',
-      status: 'Critical',
-      statusColor: 'bg-rose-500/10 text-rose-700 border-rose-200/50',
-    },
-    {
-      id: 'MC-303',
-      patient: 'Whiskers',
-      species: 'Cat',
-      diagnosis: 'Respiratory infection — antibiotics',
-      vet: 'Dr. Priya K.',
-      nextVisit: 'Aug 4',
-      status: 'Improving',
-      statusColor: 'bg-blue-500/10 text-blue-700 border-blue-200/50',
-    },
-    {
-      id: 'MC-304',
-      patient: 'Goldie',
-      species: 'Dog',
-      diagnosis: 'Routine vaccination — Rabies & Distemper',
-      vet: 'Dr. Arun M.',
-      nextVisit: '—',
-      status: 'Completed',
-      statusColor: 'bg-emerald-500/10 text-emerald-700 border-emerald-200/50',
-    }
-  ]);
+  // Live Medical Cases Data
+  const [medicalCases, setMedicalCases] = useState([]);
 
-  // Mock Upcoming Vaccinations Data
-  const vaccinations = [
-    { name: 'Shadow', type: 'Rabies Booster', due: 'Due: Aug 4', badge: 'Due Soon', badgeColor: 'bg-amber-500/10 text-amber-700 border-amber-200/30' },
-    { name: 'Brownie', type: 'Distemper', due: 'Due: Aug 6', badge: null },
-    { name: 'Kitkat', type: 'FVRCP', due: 'Due: Aug 9', badge: null }
-  ];
+  // Live Upcoming Vaccinations Data
+  const [vaccinations, setVaccinations] = useState([]);
 
-  // Mock Medicine Stock Alert
-  const lowStockMedicines = [
-    { name: 'Amoxicillin 250mg', stock: '12 tablets left', severity: 'Critical' },
-    { name: 'Rabies Vaccine Vials', stock: '5 doses left', severity: 'Warning' }
-  ];
+  // Live Medicine Stock Alert
+  const [lowStockMedicines, setLowStockMedicines] = useState([]);
 
   const handleLogout = () => {
     logout();
@@ -138,8 +103,16 @@ const VetDashboard = () => {
       
       {/* Full-width Top Navbar */}
       <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-8 flex-shrink-0 z-30 w-full">
-        {/* Brand Logo */}
-        <div className="flex items-center gap-2 select-none shrink-0">
+        {/* Brand Logo & Sidebar Toggle */}
+        <div className="flex items-center gap-3 select-none shrink-0">
+          <button
+            onClick={toggleSidebar}
+            className="p-2 -ml-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            aria-label="Toggle Sidebar"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <img src="/logo.png" alt="ResQNet Logo" className="h-9 w-auto object-contain" />
         </div>
 
@@ -203,8 +176,12 @@ const VetDashboard = () => {
       <div className="flex flex-1 overflow-hidden">
         
         {/* Sidebar Panel (below navbar) */}
-        <aside className="w-64 bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-y-auto shrink-0">
-          <nav className="p-4 space-y-1.5">
+        <aside
+          className={`${
+            sidebarOpen ? 'w-64' : 'w-20'
+          } bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-y-auto shrink-0 transition-all duration-300 ease-in-out`}
+        >
+          <nav className={`${sidebarOpen ? 'p-4' : 'p-3'} space-y-1.5`}>
             {[
               { name: 'Vet Dashboard', icon: Stethoscope },
             ].map((item) => {
@@ -214,15 +191,18 @@ const VetDashboard = () => {
                 <button
                   key={item.name}
                   onClick={() => setActiveTab(item.name)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                  title={!sidebarOpen ? item.name : undefined}
+                  className={`w-full flex items-center ${
+                    sidebarOpen ? 'justify-between px-4' : 'justify-center px-0'
+                  } py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer relative group ${
                     isActive
                       ? 'bg-[#237737] text-white shadow-md shadow-[#237737]/10'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <IconComponent className={`w-4.5 h-4.5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                    <span>{item.name}</span>
+                  <div className={`flex items-center ${sidebarOpen ? 'gap-3 min-w-0' : 'justify-center'}`}>
+                    <IconComponent className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                    {sidebarOpen && <span className="truncate whitespace-nowrap">{item.name}</span>}
                   </div>
                 </button>
               );
@@ -230,13 +210,32 @@ const VetDashboard = () => {
           </nav>
 
           {/* Sidebar Footer */}
-          <div className="p-4 border-t border-slate-100">
+          <div className={`${sidebarOpen ? 'p-4' : 'p-3'} border-t border-slate-100 space-y-1`}>
+            <button
+              onClick={toggleSidebar}
+              className={`w-full flex items-center ${
+                sidebarOpen ? 'gap-3 px-4' : 'justify-center px-0'
+              } py-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl text-xs font-semibold transition cursor-pointer`}
+              title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              {sidebarOpen ? (
+                <>
+                  <ChevronLeft className="w-4 h-4 flex-shrink-0 text-slate-400" />
+                  <span className="whitespace-nowrap">Collapse Sidebar</span>
+                </>
+              ) : (
+                <ChevronRight className="w-5 h-5 flex-shrink-0 text-slate-400" />
+              )}
+            </button>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-rose-600 rounded-xl text-sm font-semibold transition cursor-pointer"
+              className={`w-full flex items-center ${
+                sidebarOpen ? 'gap-3 px-4' : 'justify-center px-0'
+              } py-3 text-slate-600 hover:text-rose-600 hover:bg-rose-50/50 rounded-xl text-sm font-semibold transition cursor-pointer`}
+              title={!sidebarOpen ? 'Log Out' : undefined}
             >
-              <LogOut className="w-4.5 h-4.5 text-slate-500 hover:text-rose-500" />
-              <span>Log Out</span>
+              <LogOut className="w-5 h-5 flex-shrink-0 text-slate-500 hover:text-rose-500" />
+              {sidebarOpen && <span className="whitespace-nowrap">Log Out</span>}
             </button>
           </div>
         </aside>
@@ -379,6 +378,18 @@ const VetDashboard = () => {
                           ))}
                         </tbody>
                       </table>
+
+                      {medicalCases.length === 0 && (
+                        <div className="py-12 text-center text-slate-400 text-xs font-semibold space-y-2">
+                          <p>No clinical medical cases logged yet.</p>
+                          <button
+                            onClick={() => setShowAddRecordModal(true)}
+                            className="px-3.5 py-1.5 bg-[#237737] text-white rounded-xl text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> New Clinical Record
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                   </div>
@@ -408,6 +419,12 @@ const VetDashboard = () => {
                           <p className="text-[10px] text-orange-500/90 font-bold mt-0.5">{vac.due}</p>
                         </div>
                       ))}
+
+                      {vaccinations.length === 0 && (
+                        <div className="py-6 text-center text-slate-400 text-xs font-semibold">
+                          No pending vaccination schedules.
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -436,6 +453,12 @@ const VetDashboard = () => {
                           </span>
                         </div>
                       ))}
+
+                      {lowStockMedicines.length === 0 && (
+                        <div className="py-6 text-center text-slate-400 text-xs font-semibold">
+                          All pharmaceutical stocks are currently sufficient.
+                        </div>
+                      )}
                     </div>
                   </div>
 

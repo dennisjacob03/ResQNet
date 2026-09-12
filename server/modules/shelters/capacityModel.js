@@ -7,26 +7,24 @@ const capacitySchema = new mongoose.Schema(
       unique: true,
     },
     shelterId: {
-      type: String,
-      required: [true, 'Shelter ID is required'],
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'Shelter',
+      required: [true, 'Shelter reference is required'],
     },
     categoryId: {
-      type: String,
-      required: [true, 'Category ID is required'],
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'Category',
+      required: [true, 'Category reference is required'],
     },
     totalCapacity: {
       type: Number,
-      required: [true, 'Total capacity is required'],
-      min: 0,
       default: 0,
+      min: 0,
     },
     occupiedCapacity: {
       type: Number,
-      required: [true, 'Occupied capacity is required'],
-      min: 0,
       default: 0,
+      min: 0,
     },
   },
   {

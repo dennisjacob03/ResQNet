@@ -77,6 +77,19 @@ export const getAllAnimals = async (params = {}) => {
   }
 };
 
+// Get single animal by ID or animalId
+export const getAnimalById = async (id) => {
+  try {
+    const res = await fetch(`${API_URL}/${id}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to fetch animal details');
+    return data;
+  } catch (error) {
+    console.error('animalService.getAnimalById error:', error);
+    throw error;
+  }
+};
+
 // Create a new animal
 export const createAnimal = async (animalData) => {
   try {

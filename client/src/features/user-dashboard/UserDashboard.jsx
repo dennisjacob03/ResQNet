@@ -40,6 +40,8 @@ import {
   Eye,
   Calendar,
   FileText,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import AddressForm from '../../components/address/AddressForm';
 import UserProfileDropdown from '../../components/common/UserProfileDropdown';
@@ -54,6 +56,8 @@ import {
   deleteNotification,
   createNotification,
 } from '../../services/notificationService';
+import { getAllAnimals } from '../../services/animalService';
+import { getAllShelters } from '../../services/shelterService';
 import {
   validateShelterField,
   validateFullShelterForm,
@@ -75,7 +79,18 @@ const UserDashboard = () => {
   const location = useLocation();
 
   const [activeTab, setActiveTab] = useState('Dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('resqnet_sidebar_open');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem('resqnet_sidebar_open', String(next));
+      return next;
+    });
+  };
 
   // Deep-link tab activation via ?tab query param
   useEffect(() => {
@@ -90,17 +105,18 @@ const UserDashboard = () => {
   // Form states for Report Animal
   const [animalType, setAnimalType] = useState('Dog');
   const [animalCondition, setAnimalCondition] = useState('Injured');
-  const [description, setDescription] = useState(
-    'Injured male stray dog near the bus stop. Has a visible wound on his right hind leg. Limping badly and unable to move. Appeared this morning.'
-  );
-  const [locationInput, setLocationInput] = useState('MG Road, Sector 14');
-  const [hasPhoto, setHasPhoto] = useState(true);
+  const [description, setDescription] = useState('');
+  const [locationInput, setLocationInput] = useState('');
+  const [hasPhoto, setHasPhoto] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
   // Search & Filter states for Adoption
   const [searchTerm, setSearchTerm] = useState('');
   const [petCategory, setPetCategory] = useState('All');
   const [selectedPet, setSelectedPet] = useState(null);
+  const [adoptionPets, setAdoptionPets] = useState([]);
+  const [petsLoading, setPetsLoading] = useState(false);
+  const [sheltersList, setSheltersList] = useState([]);
 
   // Live Notifications State (synced with MongoDB backend)
   const [notifications, setNotifications] = useState([]);
@@ -122,9 +138,29 @@ const UserDashboard = () => {
     }
   };
 
-  // Load real notifications on dashboard mount
+  const loadDashboardData = async () => {
+    try {
+      setPetsLoading(true);
+      const [animalsRes, sheltersRes] = await Promise.all([
+        getAllAnimals().catch(() => ({ data: [], animals: [] })),
+        getAllShelters().catch(() => ({ shelters: [] })),
+      ]);
+      const pets = animalsRes?.data || animalsRes?.animals || [];
+      setAdoptionPets(pets);
+      if (sheltersRes?.shelters) {
+        setSheltersList(sheltersRes.shelters);
+      }
+    } catch (err) {
+      console.warn('Failed to load user dashboard resources:', err);
+    } finally {
+      setPetsLoading(false);
+    }
+  };
+
+  // Load real data on dashboard mount
   useEffect(() => {
     loadNotifications();
+    loadDashboardData();
   }, []);
 
   // Compute live unread count
@@ -245,118 +281,8 @@ const UserDashboard = () => {
     return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  // Mock Rescue Reports Data
-  const [rescueReports, setRescueReports] = useState([
-    {
-      id: 'RQ-1042',
-      type: 'Injured Stray Dog',
-      status: 'Rescue In Progress',
-      location: 'MG Road, Sector 14',
-      time: '2h ago',
-      statusColor: 'bg-amber-500/10 text-amber-700 border-amber-200/50',
-      iconColor: 'bg-amber-500/15 text-amber-600',
-    },
-    {
-      id: 'RQ-1038',
-      type: 'Kitten — Stranded',
-      status: 'Assigned',
-      location: 'Park Street, Near ATM',
-      time: '5h ago',
-      statusColor: 'bg-blue-500/10 text-blue-700 border-blue-200/50',
-      iconColor: 'bg-blue-500/15 text-blue-600',
-    },
-    {
-      id: 'RQ-1031',
-      type: 'Injured Pigeon',
-      status: 'Resolved',
-      location: 'Residency Road',
-      time: '1d ago',
-      statusColor: 'bg-[#237737]/10 text-[#237737] border-[#237737]/20',
-      iconColor: 'bg-[#237737]/15 text-[#237737]',
-    }
-  ]);
-
-  // Mock Adoption Pets Data
-  const pets = [
-    {
-      id: 'P-101',
-      name: 'Bruno',
-      category: 'Dog',
-      breed: 'Labrador Mix',
-      age: '2y',
-      gender: 'Male',
-      desc: 'Friendly and playful. Great with kids. Loves fetch and long walks.',
-      vaccinated: true,
-      neutered: true,
-      shelter: 'Paws & Care',
-      image: 'https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&q=80&w=600',
-    },
-    {
-      id: 'P-102',
-      name: 'Whiskers',
-      category: 'Cat',
-      breed: 'Domestic Shorthair',
-      age: '1y',
-      gender: 'Female',
-      desc: 'Curious and affectionate. Indoor cat. Loves warm laps and window sills.',
-      vaccinated: true,
-      neutered: false,
-      shelter: 'Green Valley',
-      image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=600',
-    },
-    {
-      id: 'P-103',
-      name: 'Goldie',
-      category: 'Dog',
-      breed: 'Golden Retriever',
-      age: '4y',
-      gender: 'Female',
-      desc: 'Calm and gentle. Perfect companion for families and seniors alike.',
-      vaccinated: true,
-      neutered: true,
-      shelter: 'Paws & Care',
-      image: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=600',
-    },
-    {
-      id: 'P-104',
-      name: 'Luna',
-      category: 'Cat',
-      breed: 'Siamese Mix',
-      age: '6m',
-      gender: 'Female',
-      desc: 'Playful and vocal. Enjoys chasing toys and climbing cat trees.',
-      vaccinated: true,
-      neutered: true,
-      shelter: 'Paws & Care',
-      image: 'https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&q=80&w=600',
-    },
-    {
-      id: 'P-105',
-      name: 'Max',
-      category: 'Dog',
-      breed: 'German Shepherd',
-      age: '3y',
-      gender: 'Male',
-      desc: 'Intelligent, loyal, and highly energetic. Needs an active owner.',
-      vaccinated: true,
-      neutered: false,
-      shelter: 'Green Valley',
-      image: 'https://images.unsplash.com/photo-1589941013453-ec89f33b5e95?auto=format&fit=crop&q=80&w=600',
-    },
-    {
-      id: 'P-106',
-      name: 'Cleo',
-      category: 'Cat',
-      breed: 'Calico',
-      age: '2y',
-      gender: 'Female',
-      desc: 'Quiet and independent. Prefers a serene home to nap and explore.',
-      vaccinated: true,
-      neutered: true,
-      shelter: 'Green Valley',
-      image: 'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?auto=format&fit=crop&q=80&w=600',
-    }
-  ];
+  // Live Rescue Reports Data
+  const [rescueReports, setRescueReports] = useState([]);
 
   // User Profile States
   const [profileName, setProfileName] = useState(user?.fullName || '');
@@ -1145,49 +1071,42 @@ const UserDashboard = () => {
     }, 2000);
   };
 
-  const filteredPets = pets.filter((pet) => {
+  const filteredPets = adoptionPets.filter((pet) => {
+    // Only display pets that are healthy and available for adoption
+    const isHealthy = !pet.healthCondition || pet.healthCondition === 'Healthy';
+    const isAvailable = pet.status === 'Available' || pet.status === 'Rescued';
+    if (!isHealthy || !isAvailable) return false;
+
+    const name = pet.name || '';
+    const breed = pet.breed || '';
+    const species = pet.species || pet.category || '';
     const matchesSearch =
-      pet.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      pet.breed.toLowerCase().includes(searchTerm.toLowerCase());
+      name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      breed.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory =
       petCategory === 'All' ||
-      (petCategory === 'Dogs' && pet.category === 'Dog') ||
-      (petCategory === 'Cats' && pet.category === 'Cat');
+      petCategory === 'All Pets' ||
+      (petCategory === 'Dogs' && species === 'Dog') ||
+      (petCategory === 'Cats' && species === 'Cat') ||
+      species === petCategory;
     return matchesSearch && matchesCategory;
   });
-
-  // Mock Nearby Shelters Data
-  const nearbyShelters = [
-    {
-      name: 'Paws & Care Shelter',
-      distance: '1.2 km away',
-      spaces: '26 spaces available',
-      percentage: 74,
-      barColor: 'bg-orange-500',
-    },
-    {
-      name: 'Green Valley Animal Rescue',
-      distance: '3.4 km away',
-      spaces: '55 spaces available',
-      percentage: 45,
-      barColor: 'bg-emerald-500',
-    },
-    {
-      name: 'City Animal Welfare Centre',
-      distance: '5.1 km away',
-      spaces: '11 spaces available',
-      percentage: 89,
-      barColor: 'bg-red-500',
-    }
-  ];
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#F8FAF9] font-sans overflow-hidden text-slate-800">
       
       {/* Full-width Top Navbar */}
       <header className="h-16 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-8 flex-shrink-0 z-30 w-full">
-        {/* Brand Logo */}
-        <div className="flex items-center gap-2 select-none shrink-0">
+        {/* Brand Logo & Sidebar Toggle */}
+        <div className="flex items-center gap-3 select-none shrink-0">
+          <button
+            onClick={toggleSidebar}
+            className="p-2 -ml-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            aria-label="Toggle Sidebar"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <img src="/logo.png" alt="ResQNet Logo" className="h-9 w-auto object-contain" />
         </div>
 
@@ -1314,8 +1233,12 @@ const UserDashboard = () => {
       <div className="flex flex-1 overflow-hidden">
         
         {/* Sidebar Panel (below navbar) */}
-        <aside className="w-64 bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-y-auto shrink-0">
-          <nav className="p-4 space-y-1.5">
+        <aside
+          className={`${
+            sidebarOpen ? 'w-64' : 'w-20'
+          } bg-white border-r border-slate-100 flex flex-col justify-between h-full z-20 overflow-y-auto shrink-0 transition-all duration-300 ease-in-out`}
+        >
+          <nav className={`${sidebarOpen ? 'p-4' : 'p-3'} space-y-1.5`}>
             {[
               { name: 'Dashboard', icon: LayoutDashboard },
               { name: 'Report Animal', icon: AlertTriangle },
@@ -1335,20 +1258,26 @@ const UserDashboard = () => {
                       setSubmitSuccess(false);
                     }
                   }}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer ${
+                  title={!sidebarOpen ? item.name : undefined}
+                  className={`w-full flex items-center ${
+                    sidebarOpen ? 'justify-between px-4' : 'justify-center px-0'
+                  } py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer relative group ${
                     isActive
                       ? 'bg-[#237737] text-white shadow-md shadow-[#237737]/10'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <IconComponent className={`w-4.5 h-4.5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
-                    <span>{item.name}</span>
+                  <div className={`flex items-center ${sidebarOpen ? 'gap-3 min-w-0' : 'justify-center'}`}>
+                    <IconComponent className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                    {sidebarOpen && <span className="truncate whitespace-nowrap">{item.name}</span>}
                   </div>
-                  {item.badge > 0 && !isActive && (
-                    <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  {sidebarOpen && item.badge > 0 && !isActive && (
+                    <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
                       {item.badge}
                     </span>
+                  )}
+                  {!sidebarOpen && item.badge > 0 && !isActive && (
+                    <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full" />
                   )}
                 </button>
               );
@@ -1356,13 +1285,32 @@ const UserDashboard = () => {
           </nav>
 
           {/* Sidebar Footer */}
-          <div className="p-4 border-t border-slate-100">
+          <div className={`${sidebarOpen ? 'p-4' : 'p-3'} border-t border-slate-100 space-y-1`}>
+            <button
+              onClick={toggleSidebar}
+              className={`w-full flex items-center ${
+                sidebarOpen ? 'gap-3 px-4' : 'justify-center px-0'
+              } py-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl text-xs font-semibold transition cursor-pointer`}
+              title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            >
+              {sidebarOpen ? (
+                <>
+                  <ChevronLeft className="w-4 h-4 flex-shrink-0 text-slate-400" />
+                  <span className="whitespace-nowrap">Collapse Sidebar</span>
+                </>
+              ) : (
+                <ChevronRight className="w-5 h-5 flex-shrink-0 text-slate-400" />
+              )}
+            </button>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-rose-600 rounded-xl text-sm font-semibold transition cursor-pointer"
+              className={`w-full flex items-center ${
+                sidebarOpen ? 'gap-3 px-4' : 'justify-center px-0'
+              } py-3 text-slate-600 hover:text-rose-600 hover:bg-rose-50/50 rounded-xl text-sm font-semibold transition cursor-pointer`}
+              title={!sidebarOpen ? 'Log Out' : undefined}
             >
-              <LogOut className="w-4.5 h-4.5 text-slate-500 hover:text-rose-500" />
-              <span>Log Out</span>
+              <LogOut className="w-5 h-5 flex-shrink-0 text-slate-500 hover:text-rose-500" />
+              {sidebarOpen && <span className="whitespace-nowrap">Log Out</span>}
             </button>
           </div>
         </aside>
@@ -1512,36 +1460,63 @@ const UserDashboard = () => {
                         </span>
                       </div>
                     ))}
+
+                    {rescueReports.length === 0 && (
+                      <div className="py-10 text-center text-slate-400 text-xs font-semibold space-y-2">
+                        <p>No emergency rescue reports submitted yet.</p>
+                        <button 
+                          onClick={() => setActiveTab('Report Animal')}
+                          className="px-3.5 py-1.5 bg-[#237737] text-white rounded-xl text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Report Injured Animal
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Right Card: Nearby Shelters */}
                 <div className="lg:col-span-5 bg-white border border-slate-100/90 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
                   <div>
-                    <div className="pb-4.5 mb-4.5 border-b border-slate-100">
+                    <div className="pb-4.5 mb-4.5 border-b border-slate-100 flex items-center justify-between">
                       <h3 className="font-extrabold text-base sm:text-lg text-slate-900">Nearby Shelters</h3>
+                      <span className="text-xs text-slate-400 font-bold">{sheltersList.length} Active</span>
                     </div>
 
                     <div className="space-y-4">
-                      {nearbyShelters.map((shelter, idx) => (
-                        <div key={idx} className="space-y-1.5">
-                          <div className="flex items-center justify-between text-sm">
-                            <div>
-                              <h4 className="font-extrabold text-slate-900 text-sm">{shelter.name}</h4>
-                              <p className="text-[11px] sm:text-xs text-slate-400 font-semibold mt-0.5">
-                                {shelter.distance} <span className="text-slate-300">•</span> {shelter.spaces}
-                              </p>
+                      {sheltersList.length > 0 ? (
+                        sheltersList.slice(0, 4).map((shelter) => {
+                          const total = shelter.totalCages || 1;
+                          const occupied = shelter.occupiedCages || 0;
+                          const available = Math.max(0, total - occupied);
+                          const percentage = Math.min(100, Math.round((occupied / total) * 100));
+                          const barColor = percentage >= 80 ? 'bg-orange-500' : 'bg-[#237737]';
+
+                          return (
+                            <div key={shelter._id} className="space-y-1.5">
+                              <div className="flex items-center justify-between text-sm">
+                                <div>
+                                  <h4 className="font-extrabold text-slate-900 text-sm">{shelter.shelterName}</h4>
+                                  <p className="text-[11px] sm:text-xs text-slate-400 font-semibold mt-0.5">
+                                    {available} spots available • {shelter.shelterStatus || shelter.currentStatus || 'OPEN'}
+                                  </p>
+                                </div>
+                                <span className="text-xs font-bold text-slate-500">{percentage}%</span>
+                              </div>
+                              <div className="h-1.5 bg-slate-100 rounded-full w-full overflow-hidden">
+                                <div 
+                                  className={`h-full rounded-full ${barColor}`} 
+                                  style={{ width: `${percentage}%` }}
+                                ></div>
+                              </div>
                             </div>
-                            <span className="text-xs font-bold text-slate-500">{shelter.percentage}%</span>
-                          </div>
-                          <div className="h-1.5 bg-slate-100 rounded-full w-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full ${shelter.barColor}`} 
-                              style={{ width: `${shelter.percentage}%` }}
-                            ></div>
-                          </div>
+                          );
+                        })
+                      ) : (
+                        <div className="py-8 text-center text-slate-400 text-xs font-semibold">
+                          No registered shelters found in database yet.
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1773,19 +1748,26 @@ const UserDashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredPets.map((pet) => (
                   <div 
-                    key={pet.id} 
+                    key={pet._id || pet.id} 
                     className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition duration-200 flex flex-col justify-between"
                   >
                     <div className="relative h-56 bg-slate-100 overflow-hidden group">
-                      <img 
-                        src={pet.image} 
-                        alt={pet.name} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                      />
+                      {pet.photo ? (
+                        <img 
+                          src={pet.photo.startsWith('/uploads') ? `http://localhost:5000${pet.photo}` : pet.photo} 
+                          alt={pet.name || 'Rescue Animal'} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-emerald-50 to-emerald-100 flex items-center justify-center text-emerald-800 text-5xl font-black select-none">
+                          {(pet.name || 'A')[0].toUpperCase()}
+                        </div>
+                      )}
+
                       <div className="absolute top-4 right-4 flex gap-1.5">
-                        {pet.vaccinated && (
+                        {(pet.healthCondition === 'Healthy' || pet.status === 'Healthy' || pet.vaccinated) && (
                           <span className="px-2.5 py-1 bg-emerald-500 text-white text-[10px] font-black rounded-lg shadow-sm">
-                            Vaccinated
+                            Healthy
                           </span>
                         )}
                         {pet.neutered && (
@@ -1799,26 +1781,26 @@ const UserDashboard = () => {
                     <div className="p-6 space-y-3 flex-1 flex flex-col justify-between">
                       <div>
                         <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-black text-slate-900">{pet.name}</h3>
-                          <span className="text-xs font-bold text-slate-400">{pet.id}</span>
+                          <h3 className="text-lg font-black text-slate-900">{pet.name || 'Unnamed Rescue'}</h3>
+                          <span className="text-xs font-bold text-slate-400">{pet.animalId || pet._id?.slice(-6)}</span>
                         </div>
                         <p className="text-xs text-slate-400 font-semibold mt-0.5">
-                          {pet.breed} <span className="text-slate-300">•</span> {pet.age} <span className="text-slate-300">•</span> {pet.gender}
+                          {pet.species || pet.category || 'Rescue'} • {pet.breed || 'Mixed'} • {pet.approxAge || pet.age || '1y'} • {pet.gender || 'Unknown'}
                         </p>
-                        <p className="text-xs text-slate-500 mt-3 leading-relaxed font-semibold">
-                          {pet.desc}
+                        <p className="text-xs text-slate-500 mt-3 leading-relaxed font-semibold line-clamp-2">
+                          {pet.about || pet.desc || 'Looking for a loving and permanent home.'}
                         </p>
                       </div>
 
                       <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-100 text-xs font-extrabold text-slate-600">
-                        <span className="flex items-center gap-1">
-                          <Building2 className="w-4 h-4 text-slate-400" /> {pet.shelter}
+                        <span className="flex items-center gap-1 truncate max-w-[140px]" title={pet.shelterId?.shelterName || pet.shelter || 'ResQNet Shelter'}>
+                          <Building2 className="w-4 h-4 text-slate-400 shrink-0" /> {pet.shelterId?.shelterName || pet.shelter || 'ResQNet Shelter'}
                         </span>
                         <button 
-                          onClick={() => setSelectedPet(pet)}
-                          className="text-[#237737] hover:text-[#1d632e] cursor-pointer flex items-center gap-0.5 transition"
+                          onClick={() => navigate(`/adoption/${pet._id || pet.animalId}`)}
+                          className="px-3.5 py-1.5 bg-[#237737]/10 hover:bg-[#237737] text-[#237737] hover:text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1 shadow-xs"
                         >
-                          View Profile &gt;
+                          View Details &gt;
                         </button>
                       </div>
                     </div>
@@ -2143,7 +2125,7 @@ const UserDashboard = () => {
                   <div className="space-y-1.5 md:col-span-2 bg-slate-50/70 p-4 rounded-2xl border border-slate-200/60">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
-                        <Smartphone className="w-4 h-4 text-[#237737]" /> Phone Number <span className="text-rose-600 font-bold">* (Mandatory)</span>
+                        <Smartphone className="w-4 h-4 text-[#237737]" /> Phone Number <span className="text-rose-600 font-bold">*</span>
                       </label>
                       {profilePhoneVerified && !isEditing && (
                         <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -3261,15 +3243,15 @@ const UserDashboard = () => {
 
                             <div className="flex items-center gap-2 self-start">
                               <span className={`px-3 py-1 text-xs font-black rounded-full border shrink-0 ${
-                                app.status === 'Approved'
+                                (app.applicationStatus || app.status) === 'Approved'
                                   ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200/50'
-                                  : app.status === 'Rejected'
+                                  : (app.applicationStatus || app.status) === 'Rejected'
                                   ? 'bg-rose-500/10 text-rose-700 border-rose-200/50'
-                                  : app.status === 'Site Visit'
+                                  : (app.applicationStatus || app.status) === 'Site Visit'
                                   ? 'bg-blue-500/10 text-blue-700 border-blue-200/50'
                                   : 'bg-amber-500/10 text-amber-700 border-amber-200/50'
                               }`}>
-                                {app.status === 'Site Visit' ? '📅 Site Visit & Valuation' : app.status}
+                                {(app.applicationStatus || app.status) === 'Site Visit' ? '📅 Site Visit & Valuation' : (app.applicationStatus || app.status)}
                               </span>
 
                               <button
@@ -3307,16 +3289,16 @@ const UserDashboard = () => {
 
                               {/* Step 2 */}
                               <div className={`p-3 bg-white rounded-xl border shadow-xs flex items-start gap-2.5 ${
-                                app.status === 'Site Visit'
+                                (app.applicationStatus || app.status) === 'Site Visit'
                                   ? 'border-blue-300 ring-2 ring-blue-100 bg-blue-50/30'
-                                  : app.status === 'Approved' || app.status === 'Rejected'
+                                  : (app.applicationStatus || app.status) === 'Approved' || (app.applicationStatus || app.status) === 'Rejected'
                                   ? 'border-emerald-200/70'
                                   : 'border-slate-200 opacity-60'
                               }`}>
                                 <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
-                                  app.status === 'Site Visit'
+                                  (app.applicationStatus || app.status) === 'Site Visit'
                                     ? 'bg-blue-100 text-blue-700 animate-pulse'
-                                    : app.status === 'Approved' || app.status === 'Rejected'
+                                    : (app.applicationStatus || app.status) === 'Approved' || (app.applicationStatus || app.status) === 'Rejected'
                                     ? 'bg-emerald-100 text-emerald-700'
                                     : 'bg-slate-100 text-slate-400'
                                 }`}>
@@ -3327,7 +3309,7 @@ const UserDashboard = () => {
                                   <div className="text-[10px] text-blue-700 font-bold mt-0.5">
                                     {app.siteVisitScheduleDate
                                       ? `Scheduled: ${new Date(app.siteVisitScheduleDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
-                                      : app.status === 'Pending'
+                                      : (app.applicationStatus || app.status) === 'Pending'
                                       ? 'Awaiting admin schedule'
                                       : 'Inspection completed'}
                                   </div>
@@ -3336,22 +3318,22 @@ const UserDashboard = () => {
 
                               {/* Step 3 */}
                               <div className={`p-3 bg-white rounded-xl border shadow-xs flex items-start gap-2.5 ${
-                                app.status === 'Approved'
+                                (app.applicationStatus || app.status) === 'Approved'
                                   ? 'border-emerald-300 ring-2 ring-emerald-100 bg-emerald-50/30'
-                                  : app.status === 'Rejected'
+                                  : (app.applicationStatus || app.status) === 'Rejected'
                                   ? 'border-rose-300 bg-rose-50/30'
                                   : 'border-slate-200 opacity-60'
                               }`}>
                                 <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
-                                  app.status === 'Approved'
+                                  (app.applicationStatus || app.status) === 'Approved'
                                     ? 'bg-emerald-100 text-emerald-700'
-                                    : app.status === 'Rejected'
+                                    : (app.applicationStatus || app.status) === 'Rejected'
                                     ? 'bg-rose-100 text-rose-700'
                                     : 'bg-slate-100 text-slate-400'
                                 }`}>
-                                  {app.status === 'Approved' ? (
+                                  {(app.applicationStatus || app.status) === 'Approved' ? (
                                     <CheckCircle className="w-4 h-4" />
-                                  ) : app.status === 'Rejected' ? (
+                                  ) : (app.applicationStatus || app.status) === 'Rejected' ? (
                                     <AlertCircle className="w-4 h-4" />
                                   ) : (
                                     <Clock className="w-4 h-4" />
@@ -3360,15 +3342,15 @@ const UserDashboard = () => {
                                 <div>
                                   <div className="font-extrabold text-slate-900">3. Decision & Credentials</div>
                                   <div className={`text-[10px] font-bold mt-0.5 ${
-                                    app.status === 'Approved'
+                                    (app.applicationStatus || app.status) === 'Approved'
                                       ? 'text-emerald-700'
-                                      : app.status === 'Rejected'
+                                      : (app.applicationStatus || app.status) === 'Rejected'
                                       ? 'text-rose-600'
                                       : 'text-slate-400'
                                   }`}>
-                                    {app.status === 'Approved'
+                                    {(app.applicationStatus || app.status) === 'Approved'
                                       ? `Approved (${app.shelter?.shelterNumber || 'Active'})`
-                                      : app.status === 'Rejected'
+                                      : (app.applicationStatus || app.status) === 'Rejected'
                                       ? 'Declined'
                                       : 'Pending evaluation report'}
                                   </div>
@@ -3677,78 +3659,6 @@ const UserDashboard = () => {
               </button>
             </div>
 
-          </div>
-        </div>
-      )}
-
-      {/* Pet Details Modal */}
-      {selectedPet && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl overflow-hidden max-w-md w-full border border-slate-100 shadow-xl flex flex-col">
-            <div className="relative h-64 bg-slate-150">
-              <img 
-                src={selectedPet.image} 
-                alt={selectedPet.name} 
-                className="w-full h-full object-cover"
-              />
-              <button 
-                onClick={() => setSelectedPet(null)}
-                className="absolute top-4 right-4 p-2 bg-slate-950/50 hover:bg-slate-950/70 text-white rounded-full transition cursor-pointer shadow animate-hover"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5">
-              <div>
-                <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-black text-slate-900">{selectedPet.name}</h2>
-                  <span className="text-xs font-bold text-slate-400">{selectedPet.id}</span>
-                </div>
-                <p className="text-xs text-slate-400 font-bold mt-1">
-                  {selectedPet.breed} • {selectedPet.age} • {selectedPet.gender}
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <span className={`px-2.5 py-1 text-xs font-bold rounded-lg border ${
-                  selectedPet.vaccinated 
-                    ? 'bg-emerald-500/10 text-emerald-700 border-emerald-200/50' 
-                    : 'bg-slate-100 text-slate-400 border-slate-200'
-                }`}>
-                  {selectedPet.vaccinated ? '✓ Vaccinated' : '✗ Unvaccinated'}
-                </span>
-                <span className={`px-2.5 py-1 text-xs font-bold rounded-lg border ${
-                  selectedPet.neutered 
-                    ? 'bg-blue-500/10 text-blue-700 border-blue-200/50' 
-                    : 'bg-slate-100 text-slate-400 border-slate-200'
-                }`}>
-                  {selectedPet.neutered ? '✓ Neutered' : '✗ Intact'}
-                </span>
-              </div>
-
-              <div className="space-y-1.5">
-                <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">About</h4>
-                <p className="text-xs text-slate-600 leading-relaxed font-semibold">
-                  {selectedPet.desc} Bruno is fully house-trained, friendly with other animals, and loves being around people.
-                </p>
-              </div>
-
-              <div className="p-4 bg-[#F8FAF9] rounded-2xl flex items-center justify-between border border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-white border border-[#F8FAF9] rounded-xl text-slate-500">
-                    <Building2 className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h5 className="font-extrabold text-slate-900 text-xs">{selectedPet.shelter} Shelter</h5>
-                    <p className="text-[10px] text-slate-400 font-bold mt-0.5">Partner Rescue Facility</p>
-                  </div>
-                </div>
-                <button className="px-4 py-2 bg-[#237737] hover:bg-[#1d632e] text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-sm shadow-[#237737]/10">
-                  Adopt
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}

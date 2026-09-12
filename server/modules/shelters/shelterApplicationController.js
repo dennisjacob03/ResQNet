@@ -71,7 +71,7 @@ const submitApplication = async (req, res) => {
         { registrationNumber: regNum },
         { shelterEmail: email },
       ],
-      status: 'Pending',
+      applicationStatus: 'Pending',
     });
 
     if (existingPending) {
@@ -97,7 +97,7 @@ const submitApplication = async (req, res) => {
       occupiedCages: Number(occupiedCages || 0),
       isEmailVerified: isEmailVerified ?? true,
       isPhoneVerified: isPhoneVerified ?? true,
-      status: 'Pending',
+      applicationStatus: 'Pending',
     });
 
     // 1. Create In-App Notification for the Applicant User
@@ -110,6 +110,7 @@ const submitApplication = async (req, res) => {
       metadata: {
         shelterApplicationId: application.shelterApplicationId,
         shelterName: application.shelterName,
+        applicationStatus: 'Pending',
         status: 'Pending',
       },
     }).catch((err) => console.error('Failed to create submission notification for user:', err));
@@ -125,6 +126,7 @@ const submitApplication = async (req, res) => {
         shelterName: application.shelterName,
         applicantName: req.user.fullName,
         applicantEmail: req.user.email,
+        applicationStatus: 'Pending',
         status: 'Pending',
       },
     }).catch((err) => console.error('Failed to create submission notification for admins:', err));
@@ -161,7 +163,7 @@ const getMyApplication = async (req, res) => {
 
     // Attach corresponding shelter details for approved applications
     const applicationIds = applications
-      .filter((a) => a.status === 'Approved')
+      .filter((a) => (a.applicationStatus || a.status) === 'Approved')
       .map((a) => a.shelterApplicationId);
 
     const shelters = await Shelter.find({
@@ -181,10 +183,15 @@ const getMyApplication = async (req, res) => {
       }
     });
 
-    const applicationsWithShelters = applications.map((app) => ({
-      ...app.toObject(),
-      shelter: shelterMap[app.shelterApplicationId] || shelterMap[String(req.user._id)] || null,
-    }));
+    const applicationsWithShelters = applications.map((app) => {
+      const obj = app.toObject();
+      return {
+        ...obj,
+        applicationStatus: obj.applicationStatus || obj.status || 'Pending',
+        status: obj.applicationStatus || obj.status || 'Pending',
+        shelter: shelterMap[app.shelterApplicationId] || shelterMap[String(req.user._id)] || null,
+      };
+    });
 
     const latestApp = applicationsWithShelters[0];
     const shelter = latestApp ? latestApp.shelter || shelters[0] || null : null;
@@ -214,7 +221,7 @@ const getAllApplications = async (req, res) => {
 
     // Attach corresponding shelter details (if approved)
     const applicationIds = applications
-      .filter((a) => a.status === 'Approved')
+      .filter((a) => (a.applicationStatus || a.status) === 'Approved')
       .map((a) => a.shelterApplicationId);
 
     const shelters = await Shelter.find({
@@ -230,10 +237,16 @@ const getAllApplications = async (req, res) => {
 
     const applicationsWithShelter = applications.map((app) => ({
       ...app,
+      applicationStatus: app.applicationStatus || app.status || 'Pending',
+      status: app.applicationStatus || app.status || 'Pending',
       shelter: shelterMap[app.shelterApplicationId] || null,
     }));
 
-    res.status(200).json({ success: true, applications: applicationsWithShelter });
+    res.status(200).json({ 
+      success: true, 
+      count: applicationsWithShelter.length,
+      applications: applicationsWithShelter 
+    });
   } catch (error) {
     console.error('Get All Applications Error:', error.message);
     res.status(500).json({ success: false, message: error.message });
@@ -248,6 +261,7 @@ const reviewApplication = async (req, res) => {
     const { id } = req.params;
     const {
       status,
+      applicationStatus,
       reviewNote,
       siteVisitScheduleDate,
       siteVisitValuationPeriod,
@@ -256,7 +270,9 @@ const reviewApplication = async (req, res) => {
       siteVisitInspector,
     } = req.body;
 
-    if (!['Pending', 'Site Visit', 'Approved', 'Rejected'].includes(status)) {
+    const finalStatus = applicationStatus || status;
+
+    if (!['Pending', 'Site Visit', 'Approved', 'Rejected'].includes(finalStatus)) {
       return res.status(400).json({
         success: false,
         message: "Status must be 'Pending', 'Site Visit', 'Approved', or 'Rejected'.",
@@ -268,7 +284,7 @@ const reviewApplication = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Application not found.' });
     }
 
-    application.status = status;
+    application.applicationStatus = finalStatus;
     if (reviewNote !== undefined) application.reviewNote = reviewNote;
     if (siteVisitScheduleDate !== undefined) application.siteVisitScheduleDate = siteVisitScheduleDate;
     if (siteVisitValuationPeriod !== undefined) application.siteVisitValuationPeriod = siteVisitValuationPeriod;
@@ -285,7 +301,7 @@ const reviewApplication = async (req, res) => {
     let tempPassword = null;
 
     // When status is 'Site Visit': Dispatch notification to applicant and broadcast to admins
-    if (status === 'Site Visit') {
+    if (finalStatus === 'Site Visit') {
       const visitDateStr = siteVisitScheduleDate
         ? new Date(siteVisitScheduleDate).toLocaleDateString('en-IN', {
             day: 'numeric',
@@ -304,6 +320,7 @@ const reviewApplication = async (req, res) => {
           priority: 'High',
           metadata: {
             shelterApplicationId: application.shelterApplicationId,
+            applicationStatus: 'Site Visit',
             status: 'Site Visit',
             siteVisitScheduleDate: application.siteVisitScheduleDate,
             siteVisitValuationPeriod: application.siteVisitValuationPeriod,
@@ -320,6 +337,7 @@ const reviewApplication = async (req, res) => {
         priority: 'Medium',
         metadata: {
           shelterApplicationId: application.shelterApplicationId,
+          applicationStatus: 'Site Visit',
           status: 'Site Visit',
           siteVisitScheduleDate: application.siteVisitScheduleDate,
           siteVisitValuationPeriod: application.siteVisitValuationPeriod,
@@ -328,7 +346,7 @@ const reviewApplication = async (req, res) => {
     }
 
     // On Approval: provision/upgrade User account with temporary password & create Shelter record
-    if (status === 'Approved') {
+    if (finalStatus === 'Approved') {
       tempPassword = generateTemporaryPassword();
       const shelterEmail = application.shelterEmail.toLowerCase().trim();
       const shelterPhone = String(application.shelterPhoneNumber).trim();
@@ -386,10 +404,7 @@ const reviewApplication = async (req, res) => {
           totalStaffs: application.totalStaffs,
           totalCages: application.totalCages,
           occupiedCages: application.occupiedCages,
-          currentStatus:
-            application.occupiedCages >= application.totalCages && application.totalCages > 0
-              ? 'FULL'
-              : 'OPEN',
+          shelterStatus: 'UNDER_MAINTENANCE',
           status: 'Active',
         });
       } else {
@@ -401,10 +416,9 @@ const reviewApplication = async (req, res) => {
         existingShelter.shelterName = application.shelterName;
         existingShelter.shelterEmail = shelterEmail;
         existingShelter.shelterPhoneNumber = application.shelterPhoneNumber;
-        existingShelter.currentStatus =
-          existingShelter.occupiedCages >= existingShelter.totalCages && existingShelter.totalCages > 0
-            ? 'FULL'
-            : 'OPEN';
+        if (!existingShelter.shelterStatus) {
+          existingShelter.shelterStatus = 'UNDER_MAINTENANCE';
+        }
         existingShelter.status = 'Active';
         await existingShelter.save();
       }
@@ -435,6 +449,7 @@ const reviewApplication = async (req, res) => {
           metadata: {
             shelterApplicationId: application.shelterApplicationId,
             shelterNumber: createdShelter.shelterNumber,
+            applicationStatus: 'Approved',
             status: 'Approved',
           },
         }).catch((err) => console.error('Failed to create approval notification for user:', err));
@@ -449,16 +464,17 @@ const reviewApplication = async (req, res) => {
         metadata: {
           shelterApplicationId: application.shelterApplicationId,
           shelterNumber: createdShelter.shelterNumber,
+          applicationStatus: 'Approved',
           status: 'Approved',
         },
       }).catch((err) => console.error('Failed to create approval notification for admins:', err));
     }
 
     // On Rejection of a previously approved one: close shelter & optionally downgrade user role
-    if (status === 'Rejected') {
+    if (finalStatus === 'Rejected') {
       await Shelter.findOneAndUpdate(
         { shelterApplicationId: application.shelterApplicationId },
-        { status: 'CLOSED' }
+        { shelterStatus: 'CLOSED' }
       );
 
       const user = await User.findById(application.applicantId || application.userId);
@@ -477,6 +493,7 @@ const reviewApplication = async (req, res) => {
           priority: 'High',
           metadata: {
             shelterApplicationId: application.shelterApplicationId,
+            applicationStatus: 'Rejected',
             status: 'Rejected',
             reviewNote,
           },
@@ -491,6 +508,7 @@ const reviewApplication = async (req, res) => {
         priority: 'Medium',
         metadata: {
           shelterApplicationId: application.shelterApplicationId,
+          applicationStatus: 'Rejected',
           status: 'Rejected',
           reviewNote,
         },

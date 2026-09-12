@@ -80,7 +80,7 @@ const shelterApplicationSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    status: {
+    applicationStatus: {
       type: String,
       enum: ['Pending', 'Site Visit', 'Approved', 'Rejected'],
       default: 'Pending',

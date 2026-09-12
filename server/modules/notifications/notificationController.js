@@ -42,21 +42,7 @@ const createNotificationHelper = async ({
 const getMyNotifications = async (req, res) => {
   try {
     const userId = req.user._id;
-    let notifications = await Notification.find({ userId, isDeleted: { $ne: true } }).sort({ createdAt: -1 });
-
-    // If existing user has 0 notifications, seed a warm welcome notification
-    if (notifications.length === 0) {
-      const welcome = await Notification.create({
-        userId,
-        title: 'Welcome to ResQNet! 🐾',
-        message: `Greetings ${req.user.fullName || 'there'}! Welcome to ResQNet. We are delighted to have you join our animal welfare and rescue network.`,
-        type: 'Welcome',
-        priority: 'Medium',
-        status: 'Unread',
-      });
-      notifications = [welcome];
-    }
-
+    const notifications = await Notification.find({ userId, isDeleted: { $ne: true } }).sort({ createdAt: -1 });
     const unreadCount = notifications.filter((n) => n.status === 'Unread').length;
 
     res.status(200).json({
