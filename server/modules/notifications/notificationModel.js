@@ -29,6 +29,8 @@ const notificationSchema = new mongoose.Schema(
           'ShelterApplication',
           'Rescue',
           'Adoption',
+          'Volunteer',
+          'Veterinary',
           'Vaccination',
           'Medicine',
           'Alert',
@@ -77,23 +79,9 @@ const notificationSchema = new mongoose.Schema(
 // Auto-generate notificationId (e.g. NTF-0001) before save
 notificationSchema.pre('save', async function () {
   if (!this.notificationId) {
-    const records = await mongoose
-      .model('Notification')
-      .find({}, { notificationId: 1 })
-      .lean();
-
-    let maxSeq = 0;
-    records.forEach((r) => {
-      if (r.notificationId) {
-        const match = r.notificationId.match(/^NTF-(\d+)$/i);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num > maxSeq) maxSeq = num;
-        }
-      }
-    });
-
-    this.notificationId = `NTF-${String(maxSeq + 1).padStart(4, '0')}`;
+    const count = await mongoose.model('Notification').countDocuments();
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    this.notificationId = `NTF-${String(count + 1).padStart(4, '0')}-${rand}`;
   }
 });
 

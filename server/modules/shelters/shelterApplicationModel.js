@@ -49,6 +49,10 @@ const shelterApplicationSchema = new mongoose.Schema(
       type: Number,
       required: [true, 'Shelter contact number is required'],
     },
+    password: {
+      type: String,
+      default: '',
+    },
     latitude: {
       type: Number,
       required: [true, 'Latitude is required'],

@@ -7,18 +7,53 @@ const vetStaffSchema = new mongoose.Schema(
       unique: true,
     },
     shelterId: {
-      type: String,
-      required: [true, 'Shelter ID is required'],
+      type: mongoose.Schema.Types.ObjectId,
       ref: 'Shelter',
+      required: [true, 'Shelter ID is required'],
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'User ID is required'],
     },
     vetStaffApplicationId: {
       type: String,
-      required: [true, 'Vet staff application ID is required'],
-      ref: 'VetStaffApplication',
+      default: '',
     },
     vetStaffNumber: {
       type: String,
       unique: true,
+    },
+    fullName: {
+      type: String,
+      required: [true, 'Staff name is required'],
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: [true, 'Staff email is required'],
+      trim: true,
+      lowercase: true,
+    },
+    phone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    councilRegistrationNumber: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    qualification: {
+      type: String,
+      default: 'BVSc & AH',
+      trim: true,
+    },
+    specialization: {
+      type: String,
+      default: 'General Practice',
+      trim: true,
     },
     position: {
       type: String,
@@ -31,6 +66,7 @@ const vetStaffSchema = new mongoose.Schema(
     joiningDate: {
       type: Date,
       required: [true, 'Joining date is required'],
+      default: Date.now,
     },
     experience: {
       type: Number,
@@ -52,6 +88,10 @@ const vetStaffSchema = new mongoose.Schema(
         message: '{VALUE} is not a valid status',
       },
       default: 'Active',
+    },
+    canManageMedicineStock: {
+      type: Boolean,
+      default: false,
     },
   },
   {

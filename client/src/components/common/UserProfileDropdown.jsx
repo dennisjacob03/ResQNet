@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { User, LogOut, ChevronDown, Bell } from 'lucide-react';
+import { checkProfileCompletion } from '../../utils/profileUtils';
 
 const UserProfileDropdown = ({
   onOpenProfile,
@@ -10,9 +11,28 @@ const UserProfileDropdown = ({
   customRole = null,
 }) => {
   const { user, logout } = useAuth();
+  const profileStatus = checkProfileCompletion(user);
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const timeoutRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // Close dropdown on outside click/tap
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isOpen]);
 
   const handleLogout = () => {
     setIsOpen(false);
@@ -34,6 +54,11 @@ const UserProfileDropdown = ({
     if (onOpenNotifications) {
       onOpenNotifications();
     }
+  };
+
+  const handleToggleClick = (e) => {
+    e.stopPropagation();
+    setIsOpen((prev) => !prev);
   };
 
   // Smooth hover handlers with small delay to prevent accidental closing
@@ -77,6 +102,7 @@ const UserProfileDropdown = ({
 
   return (
     <div
+      ref={containerRef}
       className="relative"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -84,9 +110,9 @@ const UserProfileDropdown = ({
       {/* ── Profile Chip (Matching Requested Visual Design) ── */}
       <button
         type="button"
-        onClick={handleProfileClick}
-        className="flex items-center gap-2.5 pl-3 border-l border-slate-200 cursor-pointer text-left focus:outline-none group select-none py-1 hover:opacity-90 transition-opacity"
-        title="View Profile"
+        onClick={handleToggleClick}
+        className="flex items-center gap-2 sm:gap-2.5 pl-2 sm:pl-3 border-l border-slate-200 cursor-pointer text-left focus:outline-none group select-none py-1 hover:opacity-90 transition-opacity"
+        title="Account Options"
         aria-expanded={isOpen}
       >
         {/* Avatar */}
@@ -94,10 +120,10 @@ const UserProfileDropdown = ({
           <img
             src={profileImageUrl}
             alt={displayName}
-            className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-sm shrink-0"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border border-slate-200 shadow-sm shrink-0"
           />
         ) : (
-          <div className="w-9 h-9 rounded-full bg-[#0284c7] text-white font-extrabold text-sm flex items-center justify-center shadow-sm select-none shrink-0 ring-2 ring-[#0284c7]/20">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0284c7] text-white font-extrabold text-xs sm:text-sm flex items-center justify-center shadow-sm select-none shrink-0 ring-2 ring-[#0284c7]/20">
             {avatarLetter}
           </div>
         )}
@@ -122,7 +148,7 @@ const UserProfileDropdown = ({
 
       {/* ── Hover / Click Dropdown Menu ── */}
       {isOpen && (
-        <div className="absolute right-0 top-full pt-2 w-64 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="absolute right-0 top-full pt-2 w-64 max-w-[calc(100vw-2rem)] z-50 animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200/90 overflow-hidden backdrop-blur-xl">
             {/* Header: User Summary */}
             <div className="p-4 bg-slate-50/80 border-b border-slate-100 flex items-center gap-3">
@@ -151,10 +177,17 @@ const UserProfileDropdown = ({
               <button
                 type="button"
                 onClick={handleProfileClick}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-[#237737]/10 hover:text-[#237737] rounded-xl transition-colors cursor-pointer text-left"
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-700 hover:bg-[#237737]/10 hover:text-[#237737] rounded-xl transition-colors cursor-pointer text-left"
               >
-                <User className="w-4 h-4 text-slate-500 group-hover:text-[#237737]" />
-                <span>My Profile</span>
+                <div className="flex items-center gap-2.5">
+                  <User className="w-4 h-4 text-slate-500 group-hover:text-[#237737]" />
+                  <span>My Profile</span>
+                </div>
+                {!profileStatus.isComplete && (
+                  <span className="text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                    {profileStatus.percentage}%
+                  </span>
+                )}
               </button>
 
               {onOpenNotifications && (

@@ -24,11 +24,11 @@ const {
   getMyShelterAnimals,
   createMyShelterAnimal,
 } = require('./shelterController');
-const { protect, authorizeRoles } = require('../../middleware/authMiddleware');
+const { protect, authorizeRoles, requireCompleteProfile } = require('../../middleware/authMiddleware');
 const { validateShelterRegistration } = require('./shelterValidation');
 
 // Application routes
-router.post('/apply', protect, validateShelterRegistration, submitApplication);
+router.post('/apply', protect, requireCompleteProfile, validateShelterRegistration, submitApplication);
 router.get('/my-application', protect, getMyApplication);
 router.get('/applications', protect, authorizeRoles('Admin'), getAllApplications);
 router.put('/applications/:id/review', protect, authorizeRoles('Admin'), reviewApplication);

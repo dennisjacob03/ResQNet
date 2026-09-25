@@ -13,16 +13,26 @@ const rescueRequestSchema = new mongoose.Schema(
     },
     categoryId: {
       type: String,
-      required: [true, 'Category ID is required'],
+      default: 'CAT-0001',
       ref: 'Category',
+    },
+    animalType: {
+      type: String,
+      default: 'Dog',
+      trim: true,
+    },
+    animalCondition: {
+      type: String,
+      default: 'Injured',
+      trim: true,
     },
     type: {
       type: String,
       enum: {
-        values: ['Injured', 'Lost', 'Aggressive', 'Abandoned', 'Sick', 'Dead'],
+        values: ['Injured', 'Lost', 'Aggressive', 'Abandoned', 'Sick', 'Dead', 'Stranded', 'Deceased'],
         message: '{VALUE} is not a valid rescue type',
       },
-      required: [true, 'Rescue type is required'],
+      default: 'Injured',
     },
     priority: {
       type: String,
@@ -38,8 +48,23 @@ const rescueRequestSchema = new mongoose.Schema(
       trim: true,
     },
     image: {
-      type: String, // Base64 encoded image
+      type: String, // Base64 encoded image or URL
       default: '',
+    },
+    locationAddress: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    city: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    district: {
+      type: String,
+      default: '',
+      trim: true,
     },
     latitude: {
       type: Number,
@@ -57,6 +82,112 @@ const rescueRequestSchema = new mongoose.Schema(
       },
       default: 'Pending',
     },
+    rescueStage: {
+      type: String,
+      enum: [
+        'Broadcasted',
+        'Accepted',
+        'En Route',
+        'Arrived on Scene',
+        'Animal Rescued',
+        'Transporting to Shelter',
+        'Delivered to Shelter',
+        'Completed',
+        'Cancelled',
+      ],
+      default: 'Broadcasted',
+    },
+    // Multi-team broadcast pool tracking
+    candidateTeams: [
+      {
+        teamId: { type: String },
+        teamObjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'RescueTeam' },
+        teamName: { type: String, default: '' },
+        rescueTeamNumber: { type: String, default: '' },
+        vehicleNumber: { type: String, default: '' },
+        vehicleType: { type: String, default: '' },
+        phone: { type: String, default: '' },
+        distanceKm: { type: Number, default: 0 },
+        status: {
+          type: String,
+          enum: ['Notified', 'Accepted', 'Declined', 'Assigned', 'Backup'],
+          default: 'Notified',
+        },
+        responseTime: { type: Date, default: null },
+        declineReason: { type: String, default: '' },
+        location: {
+          latitude: { type: Number },
+          longitude: { type: Number },
+        },
+      },
+    ],
+    // Selected / Nearest Assigned Team
+    assignedRescueTeamId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'RescueTeam',
+      default: null,
+    },
+    assignedRescueTeamNumber: {
+      type: String,
+      default: '',
+    },
+    assignedRescueTeamName: {
+      type: String,
+      default: '',
+    },
+    assignedRescueTeamPhone: {
+      type: String,
+      default: '',
+    },
+    assignedRescueTeamVehicle: {
+      type: String,
+      default: '',
+    },
+    assignedRescueTeamLocation: {
+      latitude: { type: Number, default: null },
+      longitude: { type: Number, default: null },
+      updatedAt: { type: Date, default: Date.now },
+    },
+    // Nearby Shelter Routing
+    destinationShelterId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Shelter',
+      default: null,
+    },
+    destinationShelterName: {
+      type: String,
+      default: '',
+    },
+    destinationShelterLocation: {
+      latitude: { type: Number, default: null },
+      longitude: { type: Number, default: null },
+      address: { type: String, default: '' },
+    },
+    shelterNotified: {
+      type: Boolean,
+      default: false,
+    },
+    shelterNotifiedAt: {
+      type: Date,
+      default: null,
+    },
+    shelterIntakeStatus: {
+      type: String,
+      enum: ['None', 'Notified', 'En Route', 'Admitted', 'Declined'],
+      default: 'None',
+    },
+    // Timeline of transit & operations
+    trackingTimeline: [
+      {
+        stage: { type: String, required: true },
+        timestamp: { type: Date, default: Date.now },
+        note: { type: String, default: '' },
+        location: {
+          latitude: { type: Number },
+          longitude: { type: Number },
+        },
+      },
+    ],
     rescuedAt: {
       type: Date,
       default: null,

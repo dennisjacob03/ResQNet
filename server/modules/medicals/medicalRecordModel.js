@@ -11,10 +11,40 @@ const medicalRecordSchema = new mongoose.Schema(
       required: [true, 'Animal ID is required'],
       ref: 'Animal',
     },
+    animalObjectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Animal',
+      default: null,
+    },
+    animalName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    species: {
+      type: String,
+      default: 'Dog',
+      trim: true,
+    },
+    shelterId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Shelter',
+      default: null,
+    },
+    vetUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    vetName: {
+      type: String,
+      default: 'Veterinary Doctor',
+      trim: true,
+    },
     type: {
       type: String,
       enum: {
-        values: ['Diagnosis', 'Treatment', 'Surgery'],
+        values: ['Diagnosis', 'Treatment', 'Surgery', 'Routine Checkup'],
         message: '{VALUE} is not a valid medical record type',
       },
       required: [true, 'Medical record type is required'],
@@ -27,6 +57,32 @@ const medicalRecordSchema = new mongoose.Schema(
     reportDate: {
       type: Date,
       required: [true, 'Report date is required'],
+      default: Date.now,
+    },
+    vitals: {
+      temperature: { type: String, default: '' },
+      weight: { type: String, default: '' },
+      pulse: { type: String, default: '' },
+      mucosalColor: { type: String, default: '' },
+    },
+    isSurgery: {
+      type: Boolean,
+      default: false,
+    },
+    surgeryDetails: {
+      procedureName: { type: String, default: '' },
+      anesthesia: { type: String, default: '' },
+      surgeon: { type: String, default: '' },
+      postOpCare: { type: String, default: '' },
+    },
+    nextVisitDate: {
+      type: Date,
+      default: null,
+    },
+    status: {
+      type: String,
+      enum: ['Ongoing', 'Critical', 'Improving', 'Completed'],
+      default: 'Ongoing',
     },
     isDeleted: {
       type: Boolean,

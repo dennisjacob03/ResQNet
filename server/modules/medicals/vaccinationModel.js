@@ -11,6 +11,26 @@ const vaccinationSchema = new mongoose.Schema(
       required: [true, 'Animal ID is required'],
       ref: 'Animal',
     },
+    animalObjectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Animal',
+      default: null,
+    },
+    animalName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    species: {
+      type: String,
+      default: 'Dog',
+      trim: true,
+    },
+    shelterId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Shelter',
+      default: null,
+    },
     vaccineName: {
       type: String,
       required: [true, 'Vaccine name is required'],
@@ -19,15 +39,34 @@ const vaccinationSchema = new mongoose.Schema(
     dateGiven: {
       type: Date,
       required: [true, 'Vaccination date is required'],
+      default: Date.now,
     },
     nextDueDate: {
       type: Date,
       default: null,
     },
+    administeredBy: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    batchNumber: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     remarks: {
       type: String,
       default: '',
       trim: true,
+    },
+    reminderSent: {
+      type: Boolean,
+      default: false,
+    },
+    lastReminderDate: {
+      type: Date,
+      default: null,
     },
   },
   {

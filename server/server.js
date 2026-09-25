@@ -14,6 +14,12 @@ const shelterApplicationRoutes = require('./modules/shelters/shelterApplicationR
 const userRoutes = require('./modules/users/userRoutes');
 const notificationRoutes = require('./modules/notifications/notificationRoutes');
 const animalRoutes = require('./modules/animals/animalRoutes');
+const adoptionRoutes = require('./modules/adoption/adoptionRoutes');
+const rescueRoutes = require('./modules/rescues/rescueTeamApplicationRoutes');
+const rescueRequestRoutes = require('./modules/rescues/rescueRequestRoutes');
+const volunteerRoutes = require('./modules/volunteers/volunteerApplicationRoutes');
+const veterinaryRoutes = require('./modules/medicals/veterinaryRoutes');
+const publicRoutes = require('./modules/public/publicRoutes');
 const { verifyTransporter } = require('./utils/emailService');
 
 const app = express();
@@ -32,6 +38,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
 // Routes
+app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/locations', locationRoutes);
@@ -39,6 +46,11 @@ app.use('/api/shelters', shelterApplicationRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/animals', animalRoutes);
+app.use('/api/adoptions', adoptionRoutes);
+app.use('/api/rescues', rescueRoutes);
+app.use('/api/rescue-requests', rescueRequestRoutes);
+app.use('/api/volunteers', volunteerRoutes);
+app.use('/api/veterinary', veterinaryRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

@@ -29,15 +29,293 @@ import {
   Award,
   AlertTriangle,
   Send,
-  X
+  X,
+  Home,
+  Building,
+  LogIn,
+  Loader2,
+  Bell,
+  Star
 } from 'lucide-react';
 import { getAnimalById } from '../../services/animalService';
 import { useAuth } from '../../context/AuthContext';
+import {
+  submitAdoptionApplication,
+  checkPetApplicationStatus,
+} from '../../services/adoptionService';
+import {
+  getMyNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+} from '../../services/notificationService';
+import {
+  HOUSING_TYPES,
+  validateAdoptionFormData,
+} from './adoptionValidation';
+import { checkProfileCompletion } from '../../utils/profileUtils';
+import { ProfileRequiredModal } from '../../components/common/ProfileRequiredCard';
+
+// Role-aware Dashboard Headers & Sidebars
+import UserHeader from '../user-dashboard/Header';
+import UserSidebar from '../user-dashboard/Sidebar';
+import ShelterHeader from '../shelter/Header';
+import ShelterSidebar from '../shelter/Sidebar';
+import AdminHeader from '../admin/Header';
+import AdminSidebar from '../admin/Sidebar';
+import VetHeader from '../veterinary/Header';
+import VetSidebar from '../veterinary/Sidebar';
+import RescueHeader from '../rescue-team/Header';
+import RescueSidebar from '../rescue-team/Sidebar';
 
 const PetDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+
+  // Sidebar collapsible state (synced with localStorage)
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('resqnet_sidebar_open');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const toggleSidebar = () => {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      localStorage.setItem('resqnet_sidebar_open', String(next));
+      return next;
+    });
+  };
+
+  // Live Notifications State
+  const [notifications, setNotifications] = useState([]);
+  const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
+
+  const loadNotifications = async () => {
+    try {
+      const res = await getMyNotifications();
+      if (res?.success) {
+        setNotifications(res.notifications || []);
+      }
+    } catch (err) {
+      console.warn('Failed to load notifications in PetDetailsPage:', err.message);
+    }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const unreadCount = notifications.filter((n) => n.status === 'Unread').length;
+
+  const handleMarkAllRead = async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, status: 'Read' })));
+    try {
+      await markAllNotificationsRead();
+    } catch (err) {
+      console.warn('Failed to mark all notifications read:', err.message);
+    }
+  };
+
+  const handleToggleRead = async (notifId) => {
+    const target = notifications.find((n) => n._id === notifId || n.id === notifId);
+    if (target && target.status === 'Unread') {
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === notifId || n.id === notifId ? { ...n, status: 'Read' } : n))
+      );
+      try {
+        await markNotificationRead(target._id || notifId);
+      } catch (err) {
+        console.warn('Failed to mark notification read:', err.message);
+      }
+    }
+  };
+
+  const getNotificationIconInfo = (notif) => {
+    switch (notif.type) {
+      case 'Welcome':
+        return { icon: Star, color: 'bg-emerald-500/10 text-emerald-600' };
+      case 'Rescue':
+        return { icon: AlertTriangle, color: 'bg-amber-500/10 text-amber-600' };
+      case 'Adoption':
+        return { icon: Heart, color: 'bg-rose-500/10 text-rose-600' };
+      default:
+        return { icon: Bell, color: 'bg-slate-100 text-slate-600' };
+    }
+  };
+
+  const formatNotificationTime = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const diff = (Date.now() - new Date(dateStr).getTime()) / 60000;
+      if (diff < 1) return 'Just now';
+      if (diff < 60) return `${Math.floor(diff)}m ago`;
+      if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+      return `${Math.floor(diff / 1440)}d ago`;
+    } catch {
+      return '';
+    }
+  };
+
+  const handleUserNavClick = (tabName) => {
+    switch (tabName) {
+      case 'Dashboard':
+        navigate('/dashboard?tab=dashboard');
+        break;
+      case 'Report Animal':
+        navigate('/dashboard?tab=report');
+        break;
+      case 'Adopt a Pet':
+        navigate('/dashboard?tab=adopt');
+        break;
+      case 'Register Shelter':
+        navigate('/dashboard?tab=shelter');
+        break;
+      case 'Register Rescue Team':
+        navigate('/dashboard?tab=rescue');
+        break;
+      case 'Volunteer':
+        navigate('/dashboard?tab=volunteer');
+        break;
+      case 'Join Vet Staff':
+        navigate('/dashboard?tab=vet');
+        break;
+      case 'Notifications':
+        navigate('/dashboard?tab=notifications');
+        break;
+      case 'My Profile':
+        navigate('/dashboard?tab=profile');
+        break;
+      default:
+        navigate('/dashboard');
+        break;
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const renderHeader = () => {
+    if (user?.role === 'Admin') {
+      return (
+        <AdminHeader
+          sidebarOpen={sidebarOpen}
+          toggleSidebar={toggleSidebar}
+          notifOpen={notifDropdownOpen}
+          setNotifOpen={setNotifDropdownOpen}
+          setActiveTab={() => navigate('/dashboard')}
+          setSubTab={() => {}}
+        />
+      );
+    }
+    if (user?.role === 'Shelter' || user?.role === 'Shelter Manager') {
+      return (
+        <ShelterHeader
+          sidebarOpen={sidebarOpen}
+          toggleSidebar={toggleSidebar}
+          notifOpen={notifDropdownOpen}
+          setNotifOpen={setNotifDropdownOpen}
+          notifications={notifications}
+          setActiveTab={() => navigate('/dashboard')}
+        />
+      );
+    }
+    if (user?.role === 'Veterinary Staff') {
+      return (
+        <VetHeader
+          sidebarOpen={sidebarOpen}
+          toggleSidebar={toggleSidebar}
+          notifOpen={notifDropdownOpen}
+          setNotifOpen={setNotifDropdownOpen}
+          setActiveTab={() => navigate('/dashboard')}
+        />
+      );
+    }
+    if (user?.role === 'Rescue Team') {
+      return (
+        <RescueHeader
+          sidebarOpen={sidebarOpen}
+          toggleSidebar={toggleSidebar}
+          notifOpen={notifDropdownOpen}
+          setNotifOpen={setNotifDropdownOpen}
+          setActiveTab={() => navigate('/dashboard')}
+        />
+      );
+    }
+    return (
+      <UserHeader
+        sidebarOpen={sidebarOpen}
+        toggleSidebar={toggleSidebar}
+        notifications={notifications}
+        unreadCount={unreadCount}
+        notifDropdownOpen={notifDropdownOpen}
+        setNotifDropdownOpen={setNotifDropdownOpen}
+        handleMarkAllRead={handleMarkAllRead}
+        handleToggleRead={handleToggleRead}
+        setActiveTab={handleUserNavClick}
+        getNotificationIconInfo={getNotificationIconInfo}
+        formatNotificationTime={formatNotificationTime}
+      />
+    );
+  };
+
+  const renderSidebar = () => {
+    if (user?.role === 'Admin') {
+      return (
+        <AdminSidebar
+          sidebarOpen={sidebarOpen}
+          toggleSidebar={toggleSidebar}
+          activeTab="Manage Animals"
+          setActiveTab={() => navigate('/dashboard')}
+          handleLogout={handleLogout}
+        />
+      );
+    }
+    if (user?.role === 'Shelter' || user?.role === 'Shelter Manager') {
+      return (
+        <ShelterSidebar
+          sidebarOpen={sidebarOpen}
+          toggleSidebar={toggleSidebar}
+          activeTab="Manage Animals"
+          setActiveTab={() => navigate('/dashboard')}
+          handleLogout={handleLogout}
+        />
+      );
+    }
+    if (user?.role === 'Veterinary Staff') {
+      return (
+        <VetSidebar
+          sidebarOpen={sidebarOpen}
+          toggleSidebar={toggleSidebar}
+          activeTab="Vet Dashboard"
+          setActiveTab={() => navigate('/dashboard')}
+          handleLogout={handleLogout}
+        />
+      );
+    }
+    if (user?.role === 'Rescue Team') {
+      return (
+        <RescueSidebar
+          sidebarOpen={sidebarOpen}
+          toggleSidebar={toggleSidebar}
+          activeTab="Rescue Dashboard"
+          setActiveTab={() => navigate('/dashboard')}
+          handleLogout={handleLogout}
+        />
+      );
+    }
+    return (
+      <UserSidebar
+        activeTab="Adopt a Pet"
+        setActiveTab={handleUserNavClick}
+        sidebarOpen={sidebarOpen}
+        toggleSidebar={toggleSidebar}
+        handleOpenShelterTab={() => navigate('/dashboard?tab=shelter')}
+        handleLogout={handleLogout}
+      />
+    );
+  };
 
   const [pet, setPet] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -48,18 +326,23 @@ const PetDetailsPage = () => {
   const [copiedId, setCopiedId] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
 
-  // Adoption modal state
+  // Adoption modal state & active application tracking
+  const [existingApp, setExistingApp] = useState(null);
+  const [checkingApp, setCheckingApp] = useState(false);
   const [showAdoptModal, setShowAdoptModal] = useState(false);
-  const [adoptFormSubmitted, setAdoptFormSubmitted] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileModalAction, setProfileModalAction] = useState('Apply to Adopt');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submittedApp, setSubmittedApp] = useState(null);
+  const [submitError, setSubmitError] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
   const [adoptFormData, setAdoptFormData] = useState({
-    fullName: user?.fullName || '',
-    email: user?.email || '',
-    phone: user?.phoneNumber || '',
-    housingType: 'Apartment',
-    hasYard: 'Yes',
-    hasOtherPets: 'No',
-    experienceLevel: 'Experienced',
-    message: '',
+    housing_type: 'Apartment',
+    ownership_status: 'Own',
+    landlord_name: '',
+    landlord_phone: '',
+    return_policy: false,
+    notes: '',
   });
 
   useEffect(() => {
@@ -99,6 +382,31 @@ const PetDetailsPage = () => {
     };
   }, [id]);
 
+  // Check if current logged-in user already applied for this pet
+  useEffect(() => {
+    let isMounted = true;
+    const verifyUserApp = async () => {
+      if (user && id) {
+        try {
+          setCheckingApp(true);
+          const checkRes = await checkPetApplicationStatus(id);
+          if (isMounted && checkRes.success && checkRes.hasApplied) {
+            setExistingApp(checkRes.application);
+          }
+        } catch (err) {
+          // Non-critical check
+        } finally {
+          if (isMounted) setCheckingApp(false);
+        }
+      }
+    };
+
+    verifyUserApp();
+    return () => {
+      isMounted = false;
+    };
+  }, [user, id]);
+
   const handleCopyTrackingId = () => {
     const tracking = pet?.trackingId || pet?.animalId || pet?._id;
     if (tracking) {
@@ -114,13 +422,54 @@ const PetDetailsPage = () => {
     setTimeout(() => setCopiedShare(false), 2000);
   };
 
-  const handleAdoptSubmit = (e) => {
+  const handleAdoptSubmit = async (e) => {
     e.preventDefault();
-    setAdoptFormSubmitted(true);
-    setTimeout(() => {
-      setShowAdoptModal(false);
-      setAdoptFormSubmitted(false);
-    }, 2500);
+    setSubmitError(null);
+
+    const profileStatus = checkProfileCompletion(user);
+    if (!profileStatus.isComplete) {
+      setProfileModalAction('Apply to Adopt ' + (pet?.name || 'this pet'));
+      setProfileModalOpen(true);
+      return;
+    }
+
+    const payload = {
+      pet_id: pet._id,
+      housing_type: adoptFormData.housing_type,
+      ownership_status: adoptFormData.ownership_status,
+      landlord_details: {
+        name: adoptFormData.landlord_name,
+        phone: adoptFormData.landlord_phone,
+      },
+      agreements: {
+        return_policy: adoptFormData.return_policy,
+      },
+      notes: adoptFormData.notes,
+    };
+
+    const validation = validateAdoptionFormData(payload);
+    if (!validation.isValid) {
+      setFormErrors(validation.errors);
+      return;
+    }
+    setFormErrors({});
+
+    try {
+      setIsSubmitting(true);
+      const res = await submitAdoptionApplication(payload);
+      if (res.success) {
+        setSubmittedApp(res.application);
+        setExistingApp(res.application);
+      } else {
+        setSubmitError(res.message || 'Failed to submit application');
+      }
+    } catch (err) {
+      setSubmitError(
+        err.response?.data?.message || err.message || 'Error submitting application'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getMediaUrl = (path) => {
@@ -132,30 +481,42 @@ const PetDetailsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F8FAF9] flex flex-col items-center justify-center p-6 text-slate-800">
-        <div className="w-16 h-16 border-4 border-[#237737]/20 border-t-[#237737] rounded-full animate-spin mb-4" />
-        <h2 className="text-xl font-bold text-slate-700">Loading pet details...</h2>
-        <p className="text-xs text-slate-400 mt-1 font-medium">Fetching verified medical & shelter records</p>
+      <div className="flex flex-col h-screen w-full bg-[#F8FAF9] font-sans overflow-hidden text-slate-800">
+        {renderHeader()}
+        <div className="flex flex-1 overflow-hidden">
+          {renderSidebar()}
+          <main className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6 text-slate-800">
+            <div className="w-16 h-16 border-4 border-[#237737]/20 border-t-[#237737] rounded-full animate-spin mb-4" />
+            <h2 className="text-xl font-bold text-slate-700">Loading pet details...</h2>
+            <p className="text-xs text-slate-400 mt-1 font-medium">Fetching verified medical & shelter records</p>
+          </main>
+        </div>
       </div>
     );
   }
 
   if (error || !pet) {
     return (
-      <div className="min-h-screen bg-[#F8FAF9] flex flex-col items-center justify-center p-6 text-center text-slate-800">
-        <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mb-4 shadow-sm">
-          <AlertCircle className="w-8 h-8" />
+      <div className="flex flex-col h-screen w-full bg-[#F8FAF9] font-sans overflow-hidden text-slate-800">
+        {renderHeader()}
+        <div className="flex flex-1 overflow-hidden">
+          {renderSidebar()}
+          <main className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6 text-center text-slate-800">
+            <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mb-4 shadow-sm">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 mb-2">Pet Record Not Found</h2>
+            <p className="text-sm text-slate-500 max-w-md mb-6 font-medium">
+              {error || "The pet you are looking for might have been adopted or is no longer listed."}
+            </p>
+            <button
+              onClick={() => navigate('/dashboard?tab=adopt')}
+              className="px-6 py-3 bg-[#237737] hover:bg-[#1d632e] text-white font-bold rounded-xl text-sm transition cursor-pointer flex items-center gap-2 shadow-sm shadow-[#237737]/15"
+            >
+              <ArrowLeft className="w-4 h-4" /> Return to Pet Listings
+            </button>
+          </main>
         </div>
-        <h2 className="text-2xl font-black text-slate-900 mb-2">Pet Record Not Found</h2>
-        <p className="text-sm text-slate-500 max-w-md mb-6 font-medium">
-          {error || "The pet you are looking for might have been adopted or is no longer listed."}
-        </p>
-        <button
-          onClick={() => navigate('/dashboard?tab=adopt')}
-          className="px-6 py-3 bg-[#237737] hover:bg-[#1d632e] text-white font-bold rounded-xl text-sm transition cursor-pointer flex items-center gap-2 shadow-sm shadow-[#237737]/15"
-        >
-          <ArrowLeft className="w-4 h-4" /> Return to Pet Listings
-        </button>
       </div>
     );
   }
@@ -195,85 +556,93 @@ const PetDetailsPage = () => {
       ];
 
   return (
-    <div className="min-h-screen bg-[#F8FAF9] text-slate-800 font-sans pb-20">
-      
-      {/* Top Sticky Header & Breadcrumbs Bar */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          
-          {/* Back button & Breadcrumbs */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                if (window.history.length > 1) {
-                  navigate(-1);
-                } else {
-                  navigate('/dashboard?tab=adopt');
-                }
-              }}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-slate-700 bg-slate-100/80 hover:bg-slate-200 transition-all cursor-pointer group"
-              title="Go back to previous page"
-            >
-              <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform text-[#237737]" />
-              <span>Back to Pets</span>
-            </button>
+    <div className="flex flex-col h-screen w-full bg-[#F8FAF9] font-sans overflow-hidden text-slate-800">
+      {/* Role-aware Header */}
+      {renderHeader()}
 
-            {/* Breadcrumb text (hidden on very small screens) */}
-            <nav className="hidden md:flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-              <Link to="/dashboard" className="hover:text-slate-600 transition">Dashboard</Link>
-              <ChevronRight className="w-3 h-3 text-slate-300" />
-              <Link to="/dashboard?tab=adopt" className="hover:text-slate-600 transition">Adopt a Pet</Link>
-              <ChevronRight className="w-3 h-3 text-slate-300" />
-              <span className="text-slate-800 font-bold truncate max-w-[160px]">{pet.name || 'Pet Profile'}</span>
-            </nav>
+      {/* Main Layout Below Header */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Role-aware Sidebar */}
+        {renderSidebar()}
+
+        {/* Scrollable Pet Details Panel */}
+        <main className="flex-1 overflow-y-auto">
+          {/* Top In-Content Breadcrumbs & Action Bar */}
+          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-xs px-4 sm:px-6 lg:px-8 py-3.5">
+            <div className="max-w-7xl mx-auto flex items-center justify-between">
+              {/* Back button & Breadcrumbs */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    if (window.history.length > 1) {
+                      navigate(-1);
+                    } else {
+                      navigate('/dashboard?tab=adopt');
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-slate-700 bg-slate-100/80 hover:bg-slate-200 transition-all cursor-pointer group"
+                  title="Go back to previous page"
+                >
+                  <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform text-[#237737]" />
+                  <span>Back to Pets</span>
+                </button>
+
+                {/* Breadcrumb text (hidden on very small screens) */}
+                <nav className="hidden md:flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+                  <Link to="/dashboard" className="hover:text-slate-600 transition">Dashboard</Link>
+                  <ChevronRight className="w-3 h-3 text-slate-300" />
+                  <Link to="/dashboard?tab=adopt" className="hover:text-slate-600 transition">Adopt a Pet</Link>
+                  <ChevronRight className="w-3 h-3 text-slate-300" />
+                  <span className="text-slate-800 font-bold truncate max-w-[160px]">{pet.name || 'Pet Profile'}</span>
+                </nav>
+              </div>
+
+              {/* Right Header Actions: Share & Status */}
+              <div className="flex items-center gap-2.5">
+                {/* Share link button */}
+                <button
+                  onClick={handleShare}
+                  className="p-2 sm:px-3 sm:py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                  title="Share Pet Profile"
+                >
+                  {copiedShare ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-600" />
+                      <span className="hidden sm:inline text-emerald-600">Copied Link!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-4 h-4 text-slate-500" />
+                      <span className="hidden sm:inline">Share</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Status Badge */}
+                {isAvailable && (
+                  <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 shadow-xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Available for Adoption
+                  </span>
+                )}
+                {isPending && (
+                  <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1.5 shadow-xs">
+                    <Clock className="w-3.5 h-3.5 text-amber-500" />
+                    Adoption Pending
+                  </span>
+                )}
+                {isAdopted && (
+                  <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 shadow-xs">
+                    <Heart className="w-3.5 h-3.5 text-purple-500 fill-purple-500" />
+                    Happily Adopted
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Right Header Actions: Share & Status */}
-          <div className="flex items-center gap-2.5">
-            {/* Share link button */}
-            <button
-              onClick={handleShare}
-              className="p-2 sm:px-3 sm:py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-              title="Share Pet Profile"
-            >
-              {copiedShare ? (
-                <>
-                  <Check className="w-4 h-4 text-emerald-600" />
-                  <span className="hidden sm:inline text-emerald-600">Copied Link!</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="w-4 h-4 text-slate-500" />
-                  <span className="hidden sm:inline">Share</span>
-                </>
-              )}
-            </button>
-
-            {/* Status Badge */}
-            {isAvailable && (
-              <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 shadow-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Available for Adoption
-              </span>
-            )}
-            {isPending && (
-              <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1.5 shadow-xs">
-                <Clock className="w-3.5 h-3.5 text-amber-500" />
-                Adoption Pending
-              </span>
-            )}
-            {isAdopted && (
-              <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1.5 shadow-xs">
-                <Heart className="w-3.5 h-3.5 text-purple-500 fill-purple-500" />
-                Happily Adopted
-              </span>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
+          {/* Main Content Area */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20 space-y-8">
         
         {/* TOP ROW: MEDIA SHOWCASE (LEFT) + QUICK IDENTITY & ADOPT ACTION (RIGHT) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -528,18 +897,59 @@ const PetDetailsPage = () => {
 
               {/* Adoption CTA Buttons */}
               <div className="space-y-2.5 pt-2">
-                <button
-                  onClick={() => setShowAdoptModal(true)}
-                  disabled={isAdopted}
-                  className={`w-full py-4 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 transition cursor-pointer shadow-md ${
-                    isAdopted
-                      ? 'bg-slate-300 cursor-not-allowed shadow-none'
-                      : 'bg-[#237737] hover:bg-[#1d632e] active:bg-[#185326] shadow-[#237737]/25'
-                  }`}
-                >
-                  <Heart className="w-4 h-4 fill-white" />
-                  {isAdopted ? 'Already Adopted' : `Apply to Adopt ${pet.name || 'this pet'}`}
-                </button>
+                {existingApp && ['Pending', 'Under Review'].includes(existingApp.application_status) ? (
+                  <div className="w-full p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between text-amber-900 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 font-bold shrink-0">
+                        <Clock className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-black flex items-center gap-1.5">
+                          Application Submitted
+                          <span className="text-[10px] bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full font-extrabold">
+                            {existingApp.adoptionId || 'Pending'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-amber-700 font-medium">
+                          Status: <span className="font-bold">{existingApp.application_status}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowAdoptModal(true)}
+                      className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
+                    >
+                      View Details
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      if (!user) {
+                        navigate('/login');
+                        return;
+                      }
+                      const profileStatus = checkProfileCompletion(user);
+                      if (!profileStatus.isComplete) {
+                        setProfileModalAction('Apply to Adopt ' + (pet?.name || 'this pet'));
+                        setProfileModalOpen(true);
+                        return;
+                      }
+                      setSubmitError(null);
+                      setSubmittedApp(null);
+                      setShowAdoptModal(true);
+                    }}
+                    disabled={isAdopted}
+                    className={`w-full py-4 rounded-2xl font-black text-sm text-white flex items-center justify-center gap-2 transition cursor-pointer shadow-md ${
+                      isAdopted
+                        ? 'bg-slate-300 cursor-not-allowed shadow-none'
+                        : 'bg-[#237737] hover:bg-[#1d632e] active:bg-[#185326] shadow-[#237737]/25'
+                    }`}
+                  >
+                    <Heart className="w-4 h-4 fill-white" />
+                    {isAdopted ? 'Already Adopted' : `Apply to Adopt ${pet.name || 'this pet'}`}
+                  </button>
+                )}
 
                 <div className="flex gap-2">
                   <button
@@ -548,12 +958,18 @@ const PetDetailsPage = () => {
                   >
                     <VideoIcon className="w-3.5 h-3.5 text-rose-500" /> Video Tour
                   </button>
-                  <a
-                    href={`tel:${pet.shelterId?.shelterPhoneNumber || '9876543210'}`}
-                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Phone className="w-3.5 h-3.5 text-emerald-600" /> Contact Shelter
-                  </a>
+                  {pet.shelterId?.shelterPhoneNumber ? (
+                    <a
+                      href={`tel:${pet.shelterId.shelterPhoneNumber}`}
+                      className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Phone className="w-3.5 h-3.5 text-emerald-600" /> Contact Shelter
+                    </a>
+                  ) : (
+                    <div className="flex-1 py-2.5 bg-slate-50 text-slate-400 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-not-allowed">
+                      <Phone className="w-3.5 h-3.5 text-slate-400" /> Shelter Contact
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -801,9 +1217,13 @@ const PetDetailsPage = () => {
                   <Phone className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
                     <span className="text-slate-400 font-extrabold text-[10px] uppercase block">Direct Phone</span>
-                    <a href={`tel:${pet.shelterId?.shelterPhoneNumber || '9876543210'}`} className="text-slate-800 font-bold hover:text-[#237737] transition">
-                      +91 {pet.shelterId?.shelterPhoneNumber || '98765 43210'}
-                    </a>
+                    {pet.shelterId?.shelterPhoneNumber ? (
+                      <a href={`tel:${pet.shelterId.shelterPhoneNumber}`} className="text-slate-800 font-bold hover:text-[#237737] transition">
+                        +91 {pet.shelterId.shelterPhoneNumber}
+                      </a>
+                    ) : (
+                      <span className="text-slate-400 font-medium text-xs">Not provided</span>
+                    )}
                   </div>
                 </div>
 
@@ -813,7 +1233,7 @@ const PetDetailsPage = () => {
                   <div>
                     <span className="text-slate-400 font-extrabold text-[10px] uppercase block">Official Email</span>
                     <span className="text-slate-800 font-bold truncate block">
-                      {pet.shelterId?.shelterEmail || 'info@sheltercare.org'}
+                      {pet.shelterId?.shelterEmail || pet.shelterId?.email || 'Not provided'}
                     </span>
                   </div>
                 </div>
@@ -823,7 +1243,19 @@ const PetDetailsPage = () => {
               {/* Visit Schedule CTA */}
               <div className="pt-3 border-t border-slate-100">
                 <button
-                  onClick={() => setShowAdoptModal(true)}
+                  onClick={() => {
+                    if (!user) {
+                      navigate('/login');
+                      return;
+                    }
+                    const profileStatus = checkProfileCompletion(user);
+                    if (!profileStatus.isComplete) {
+                      setProfileModalAction('Schedule a Facility Visit');
+                      setProfileModalOpen(true);
+                      return;
+                    }
+                    setShowAdoptModal(true);
+                  }}
                   className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Calendar className="w-3.5 h-3.5 text-[#237737]" /> Schedule a Facility Visit
@@ -857,7 +1289,9 @@ const PetDetailsPage = () => {
 
         </div>
 
-      </main>
+          </div>
+        </main>
+      </div>
 
       {/* ADOPTION APPLICATION MODAL */}
       {showAdoptModal && (
@@ -865,9 +1299,10 @@ const PetDetailsPage = () => {
           <div className="bg-white rounded-3xl overflow-hidden max-w-lg w-full border border-slate-100 shadow-2xl flex flex-col max-h-[90vh]">
             
             {/* Modal Header */}
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
               <div>
-                <h3 className="text-xl font-black text-slate-900">
+                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <Heart className="w-5 h-5 text-rose-500 fill-rose-500" />
                   Adopt {pet.name || 'this Companion'}
                 </h3>
                 <p className="text-xs text-slate-400 font-semibold mt-0.5">
@@ -875,7 +1310,10 @@ const PetDetailsPage = () => {
                 </p>
               </div>
               <button
-                onClick={() => setShowAdoptModal(false)}
+                onClick={() => {
+                  setShowAdoptModal(false);
+                  setSubmitError(null);
+                }}
                 className="p-2 hover:bg-slate-200 rounded-full text-slate-400 hover:text-slate-700 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -883,99 +1321,359 @@ const PetDetailsPage = () => {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 overflow-y-auto space-y-4">
-              {adoptFormSubmitted ? (
-                <div className="py-12 text-center space-y-3">
-                  <div className="w-14 h-14 bg-emerald-100 text-[#237737] rounded-full flex items-center justify-center mx-auto shadow-sm">
-                    <Check className="w-8 h-8" />
+            <div className="p-6 overflow-y-auto space-y-5">
+              {!user ? (
+                /* STATE 1: GUEST USER NEEDS TO LOG IN */
+                <div className="py-8 text-center space-y-4">
+                  <div className="w-16 h-16 bg-emerald-50 text-[#237737] rounded-full flex items-center justify-center mx-auto shadow-sm">
+                    <LogIn className="w-8 h-8" />
                   </div>
-                  <h4 className="text-lg font-black text-slate-900">Application Submitted!</h4>
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto font-medium">
-                    Thank you! The team at {shelterName} has received your adoption request for {pet.name}. They will reach out to you within 24 hours.
-                  </p>
+                  <div>
+                    <h4 className="text-lg font-black text-slate-900">Sign In Required</h4>
+                    <p className="text-xs text-slate-500 max-w-xs mx-auto font-medium mt-1">
+                      To apply for adopting {pet.name}, please log in to your ResQNet account. Your contact details will be verified with the shelter.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 pt-2">
+                    <button
+                      onClick={() => navigate('/login', { state: { from: `/adoption/${id}` } })}
+                      className="px-5 py-2.5 bg-[#237737] hover:bg-[#1d632e] text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-sm flex items-center gap-2"
+                    >
+                      <LogIn className="w-4 h-4" /> Sign In to Continue
+                    </button>
+                    <button
+                      onClick={() => setShowAdoptModal(false)}
+                      className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : submittedApp ? (
+                /* STATE 2: NEWLY SUBMITTED APPLICATION SUCCESS CONFIRMATION */
+                <div className="py-8 text-center space-y-4 animate-fade-in">
+                  <div className="w-16 h-16 bg-emerald-100 text-[#237737] rounded-full flex items-center justify-center mx-auto shadow-sm">
+                    <CheckCircle2 className="w-9 h-9" />
+                  </div>
+                  <div>
+                    <span className="px-3 py-1 bg-emerald-50 text-[#237737] border border-emerald-200 rounded-full text-xs font-extrabold uppercase tracking-wide">
+                      {submittedApp.adoptionId || 'Application Submitted'}
+                    </span>
+                    <h4 className="text-xl font-black text-slate-900 mt-2.5">
+                      Adoption Request Received!
+                    </h4>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto font-medium mt-1.5 leading-relaxed">
+                      Thank you, <strong className="text-slate-800">{user.fullName}</strong>! Your application to adopt <strong className="text-slate-800">{pet.name}</strong> has been submitted to <strong className="text-slate-800">{shelterName}</strong>. The shelter team will review your housing details and contact you.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 text-left text-xs space-y-1.5 max-w-sm mx-auto">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-semibold">Pet:</span>
+                      <span className="font-bold text-slate-800">{pet.name} ({pet.species})</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-semibold">Status:</span>
+                      <span className="font-bold text-amber-600">Pending Review</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-semibold">Contact Phone:</span>
+                      <span className="font-bold text-slate-800">{user.phoneNumber || 'From Profile'}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        setShowAdoptModal(false);
+                        navigate('/dashboard');
+                      }}
+                      className="px-5 py-2.5 bg-[#237737] hover:bg-[#1d632e] text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-sm"
+                    >
+                      Go to Dashboard
+                    </button>
+                    <button
+                      onClick={() => setShowAdoptModal(false)}
+                      className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition cursor-pointer"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              ) : existingApp && ['Pending', 'Under Review'].includes(existingApp.application_status) ? (
+                /* STATE 3: VIEW EXISTING ACTIVE APPLICATION DETAILS */
+                <div className="py-6 space-y-4 animate-fade-in">
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3">
+                    <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-sm font-black text-amber-900">Application Under Review</h4>
+                      <p className="text-xs text-amber-800/80 font-medium mt-0.5">
+                        You have already submitted an active adoption request for this pet. The shelter is processing your documents.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2.5 text-xs">
+                    <div className="flex justify-between pb-2 border-b border-slate-100">
+                      <span className="text-slate-400 font-semibold">Application ID:</span>
+                      <span className="font-black text-slate-900">{existingApp.adoptionId || 'ADO-PENDING'}</span>
+                    </div>
+                    <div className="flex justify-between pb-2 border-b border-slate-100">
+                      <span className="text-slate-400 font-semibold">Status:</span>
+                      <span className="font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
+                        {existingApp.application_status}
+                      </span>
+                    </div>
+                    <div className="flex justify-between pb-2 border-b border-slate-100">
+                      <span className="text-slate-400 font-semibold">Housing Type:</span>
+                      <span className="font-bold text-slate-800">{existingApp.housing_type}</span>
+                    </div>
+                    <div className="flex justify-between pb-2 border-b border-slate-100">
+                      <span className="text-slate-400 font-semibold">Ownership:</span>
+                      <span className="font-bold text-slate-800">{existingApp.ownership_status}</span>
+                    </div>
+                    {existingApp.ownership_status === 'Rent' && existingApp.landlord_details?.name && (
+                      <div className="flex justify-between pb-2 border-b border-slate-100">
+                        <span className="text-slate-400 font-semibold">Landlord:</span>
+                        <span className="font-bold text-slate-800">
+                          {existingApp.landlord_details.name} ({existingApp.landlord_details.phone})
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 font-semibold">Submitted On:</span>
+                      <span className="font-bold text-slate-800">
+                        {new Date(existingApp.submitted_at || existingApp.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      onClick={() => setShowAdoptModal(false)}
+                      className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
               ) : (
+                /* STATE 4: ADOPTION APPLICATION FORM */
                 <form onSubmit={handleAdoptSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500">Your Full Name</label>
-                      <input
-                        type="text"
-                        required
-                        value={adoptFormData.fullName}
-                        onChange={(e) => setAdoptFormData({ ...adoptFormData, fullName: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#237737]"
-                      />
+                  
+                  {/* Applicant Linked Details Card */}
+                  <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-extrabold uppercase text-[#237737] flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-[#237737]" /> Verified Applicant Info
+                      </span>
+                      <span className="text-[10px] text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md font-bold">
+                        Linked Account
+                      </span>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500">Contact Number</label>
-                      <input
-                        type="tel"
-                        required
-                        value={adoptFormData.phone}
-                        onChange={(e) => setAdoptFormData({ ...adoptFormData, phone: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#237737]"
-                      />
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-semibold block">Full Name</span>
+                        <span className="font-bold text-slate-800">{user.fullName || 'User'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-semibold block">Contact Phone</span>
+                        <span className="font-bold text-slate-800">{user.phoneNumber || 'Not provided'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-semibold block">Email</span>
+                        <span className="font-bold text-slate-800 truncate block">{user.email}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-semibold block">Location</span>
+                        <span className="font-bold text-slate-800">{user.city ? `${user.city}, ${user.state || ''}` : 'Location on file'}</span>
+                      </div>
                     </div>
+                    <p className="text-[10px] text-emerald-800 font-medium pt-1 border-t border-emerald-100">
+                      Contact details are automatically retrieved from your account for shelter follow-ups.
+                    </p>
                   </div>
 
+                  {/* Housing Type Field */}
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-500">Email Address</label>
-                    <input
-                      type="email"
-                      required
-                      value={adoptFormData.email}
-                      onChange={(e) => setAdoptFormData({ ...adoptFormData, email: e.target.value })}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#237737]"
-                    />
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <Home className="w-3.5 h-3.5 text-slate-400" /> Housing Type <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={adoptFormData.housing_type}
+                      onChange={(e) => {
+                        setAdoptFormData({ ...adoptFormData, housing_type: e.target.value });
+                        if (formErrors.housing_type) setFormErrors({ ...formErrors, housing_type: null });
+                      }}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#237737] cursor-pointer"
+                    >
+                      {HOUSING_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                    {formErrors.housing_type && (
+                      <p className="text-[11px] text-rose-600 font-medium">{formErrors.housing_type}</p>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500">Housing Type</label>
-                      <select
-                        value={adoptFormData.housingType}
-                        onChange={(e) => setAdoptFormData({ ...adoptFormData, housingType: e.target.value })}
-                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#237737] cursor-pointer"
-                      >
-                        <option value="Apartment">Apartment</option>
-                        <option value="Independent House">Independent House</option>
-                        <option value="Villa / Farmhouse">Villa / Farmhouse</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500">Other Pets in Home?</label>
-                      <select
-                        value={adoptFormData.hasOtherPets}
-                        onChange={(e) => setAdoptFormData({ ...adoptFormData, hasOtherPets: e.target.value })}
-                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-[#237737] cursor-pointer"
-                      >
-                        <option value="No">No</option>
-                        <option value="Yes - Dogs">Yes - Dogs</option>
-                        <option value="Yes - Cats">Yes - Cats</option>
-                        <option value="Yes - Both">Yes - Both</option>
-                      </select>
+                  {/* Ownership Status Field */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <Building className="w-3.5 h-3.5 text-slate-400" /> Ownership Status <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {['Own', 'Rent'].map((status) => {
+                        const isSelected = adoptFormData.ownership_status === status;
+                        return (
+                          <button
+                            key={status}
+                            type="button"
+                            onClick={() => {
+                              setAdoptFormData({ ...adoptFormData, ownership_status: status });
+                              if (formErrors.ownership_status) setFormErrors({ ...formErrors, ownership_status: null });
+                            }}
+                            className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#237737] text-white border-[#237737] shadow-sm shadow-[#237737]/20'
+                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-slate-300'}`} />
+                            {status === 'Own' ? 'I Own My Home' : 'I Rent / Lease'}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
+                  {/* Conditional Landlord Details (Required if Rent) */}
+                  {adoptFormData.ownership_status === 'Rent' && (
+                    <div className="p-4 bg-amber-50/70 border border-amber-200/80 rounded-2xl space-y-3 animate-fade-in">
+                      <div>
+                        <h5 className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-600" /> Landlord Verification Required
+                        </h5>
+                        <p className="text-[11px] text-amber-800 font-medium mt-0.5">
+                          Since you rent, the shelter requires landlord confirmation that pets are permitted.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-600">Landlord Name *</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. John Doe"
+                            value={adoptFormData.landlord_name}
+                            onChange={(e) => {
+                              setAdoptFormData({ ...adoptFormData, landlord_name: e.target.value });
+                              if (formErrors.landlord_name) setFormErrors({ ...formErrors, landlord_name: null });
+                            }}
+                            className={`w-full px-3 py-2 bg-white border rounded-xl text-xs font-semibold focus:outline-none ${
+                              formErrors.landlord_name ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 focus:border-[#237737]'
+                            }`}
+                          />
+                          {formErrors.landlord_name && (
+                            <p className="text-[10px] text-rose-600 font-medium">{formErrors.landlord_name}</p>
+                          )}
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-600">Landlord Phone Number *</label>
+                          <input
+                            type="tel"
+                            placeholder="e.g. 9876543210"
+                            value={adoptFormData.landlord_phone}
+                            onChange={(e) => {
+                              setAdoptFormData({ ...adoptFormData, landlord_phone: e.target.value });
+                              if (formErrors.landlord_phone) setFormErrors({ ...formErrors, landlord_phone: null });
+                            }}
+                            className={`w-full px-3 py-2 bg-white border rounded-xl text-xs font-semibold focus:outline-none ${
+                              formErrors.landlord_phone ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 focus:border-[#237737]'
+                            }`}
+                          />
+                          {formErrors.landlord_phone && (
+                            <p className="text-[10px] text-rose-600 font-medium">{formErrors.landlord_phone}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Agreement: Pet Return Policy */}
+                  <div className="space-y-1.5 pt-1">
+                    <label
+                      className={`flex items-start gap-2.5 p-3.5 rounded-2xl border transition cursor-pointer ${
+                        adoptFormData.return_policy
+                          ? 'bg-emerald-50/40 border-emerald-300 text-slate-800'
+                          : formErrors['agreements.return_policy']
+                          ? 'bg-rose-50/30 border-rose-300'
+                          : 'bg-slate-50 border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={adoptFormData.return_policy}
+                        onChange={(e) => {
+                          setAdoptFormData({ ...adoptFormData, return_policy: e.target.checked });
+                          if (formErrors['agreements.return_policy']) {
+                            setFormErrors({ ...formErrors, 'agreements.return_policy': null });
+                          }
+                        }}
+                        className="mt-0.5 w-4 h-4 rounded text-[#237737] focus:ring-[#237737] accent-[#237737] cursor-pointer"
+                      />
+                      <span className="text-[11px] leading-relaxed font-semibold">
+                        <strong className="text-slate-900 block font-bold mb-0.5">Return Policy Agreement *</strong>
+                        I agree to ResQNet's Pet Return Policy: If for any reason I can no longer care for {pet.name}, I will return this animal directly to the shelter rather than abandoning, selling, or transferring them without authorization.
+                      </span>
+                    </label>
+                    {formErrors['agreements.return_policy'] && (
+                      <p className="text-[11px] text-rose-600 font-medium pl-1">{formErrors['agreements.return_policy']}</p>
+                    )}
+                  </div>
+
+                  {/* Optional Notes / Message to Shelter */}
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-500">Why would you like to adopt {pet.name}?</label>
+                    <label className="text-xs font-bold text-slate-700">
+                      Message to Shelter <span className="text-slate-400 font-normal">(Optional)</span>
+                    </label>
                     <textarea
-                      rows={3}
-                      placeholder="Share a bit about your lifestyle and pet experience..."
-                      value={adoptFormData.message}
-                      onChange={(e) => setAdoptFormData({ ...adoptFormData, message: e.target.value })}
+                      rows={2}
+                      placeholder="Share why you'd like to adopt or describe your pet care experience..."
+                      value={adoptFormData.notes}
+                      onChange={(e) => setAdoptFormData({ ...adoptFormData, notes: e.target.value })}
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-[#237737]"
                     />
                   </div>
 
+                  {/* Submission Error Alert */}
+                  {submitError && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-bold flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                      <span>{submitError}</span>
+                    </div>
+                  )}
+
+                  {/* Submit Button */}
                   <div className="pt-2">
                     <button
                       type="submit"
-                      className="w-full py-3 bg-[#237737] hover:bg-[#1d632e] text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                      disabled={isSubmitting}
+                      className={`w-full py-3.5 bg-[#237737] hover:bg-[#1d632e] text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-2 shadow-sm ${
+                        isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+                      }`}
                     >
-                      <Send className="w-3.5 h-3.5" /> Submit Adoption Application
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" /> Submitting Application...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" /> Submit Adoption Application
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
@@ -985,6 +1683,18 @@ const PetDetailsPage = () => {
           </div>
         </div>
       )}
+
+      {/* Mandatory Profile Completion Modal for Public Users */}
+      <ProfileRequiredModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        onNavigateToProfile={() => {
+          setProfileModalOpen(false);
+          navigate('/dashboard?tab=profile');
+        }}
+        user={user}
+        actionName={profileModalAction}
+      />
 
     </div>
   );

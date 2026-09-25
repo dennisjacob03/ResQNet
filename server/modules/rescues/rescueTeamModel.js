@@ -29,10 +29,33 @@ const rescueTeamSchema = new mongoose.Schema(
       },
       required: [true, 'Vehicle type is required'],
     },
+    teamName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    contactPhone: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     operatingDistrict: {
       type: String,
       required: [true, 'Operating district is required'],
       trim: true,
+    },
+    latitude: {
+      type: Number,
+      default: 9.9312, // Default to central Kerala coordinates if unset
+    },
+    longitude: {
+      type: Number,
+      default: 76.2673,
+    },
+    currentLocation: {
+      latitude: { type: Number, default: 9.9312 },
+      longitude: { type: Number, default: 76.2673 },
+      updatedAt: { type: Date, default: Date.now },
     },
     availability: {
       type: String,

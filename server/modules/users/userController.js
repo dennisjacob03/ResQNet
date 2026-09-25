@@ -1,5 +1,10 @@
 const User = require('./userModel');
 const LoginLog = require('./loginModel');
+const RescueTeam = require('../rescues/rescueTeamModel');
+const Shelter = require('../shelters/shelterModel');
+const VetStaff = require('../shelters/vetStaffModel');
+const { getAuth } = require('firebase-admin/auth');
+const { sendAdminCreatedUserEmail } = require('../../utils/emailService');
 
 // @desc    Get all users with optional filtering & search
 // @route   GET /api/users
@@ -117,11 +122,11 @@ exports.updateUserStatus = async (req, res) => {
       });
     }
 
-    // Prevent admin from suspending themselves
-    if (req.user._id.toString() === user._id.toString() && status === 'Suspended') {
+    // Prevent any admin account from being suspended
+    if (user.role === 'Admin' && status === 'Suspended') {
       return res.status(400).json({
         success: false,
-        message: 'You cannot suspend your own admin account',
+        message: 'An Admin user account cannot be suspended',
       });
     }
 
@@ -210,7 +215,7 @@ exports.updateUserRole = async (req, res) => {
   }
 };
 
-// @desc    Create a new user directly by Admin
+// @desc    Create a new user directly by Admin with role-based details & credentials
 // @route   POST /api/users
 // @access  Private (Admin only)
 exports.createUser = async (req, res) => {
@@ -224,39 +229,226 @@ exports.createUser = async (req, res) => {
       address = '',
       city = '',
       district = '',
-      state = '',
+      state = 'Kerala',
       pincode = '',
       status = 'Active',
       isEmailVerified = true,
       isPhoneVerified = true,
+      dob = null,
+      // Rescue Team specific
+      teamName,
+      vehicleNumber,
+      vehicleType,
+      operatingDistrict,
+      coverageZone,
+      totalMembers,
+      equipment,
+      latitude,
+      longitude,
+      availability,
+      // Shelter specific
+      shelterName,
+      registrationType,
+      registrationNumber,
+      shelterPhoneNumber,
+      shelterEmail,
+      totalStaffs,
+      totalCages,
+      occupiedCages,
+      shelterStatus,
+      // Veterinary Staff specific
+      shelterId,
+      position,
+      councilRegistrationNumber,
+      qualification,
+      specialization,
+      experience,
+      joiningDate,
+      // Admin specific
+      adminDepartment,
+      adminAccessLevel,
     } = req.body;
 
-    if (!fullName || !email || !phoneNumber || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide fullName, email, phoneNumber, and password',
-      });
-    }
-
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 6 characters long',
-      });
-    }
-
+    // Validate role (Admin cannot be provisioned here)
     const validRoles = [
       'Public User',
       'Rescue Team',
       'Shelter',
       'Veterinary Staff',
-      'Admin',
     ];
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid role. Valid options: ${validRoles.join(', ')}`,
+        message: `Invalid role. Provisioning Admin accounts directly is not permitted. Valid options: ${validRoles.join(', ')}`,
       });
+    }
+
+    // Resolve effective full name based on role:
+    // For Rescue Team: teamName is used as the account full name
+    // For Shelter: shelterName is used as the account full name
+    let resolvedFullName = (fullName || '').trim();
+
+    if (role === 'Rescue Team') {
+      if (!teamName || !teamName.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Rescue Team Name is required',
+        });
+      }
+      if (teamName.trim().length < 3) {
+        return res.status(400).json({
+          success: false,
+          message: 'Rescue Team Name must be at least 3 characters',
+        });
+      }
+      resolvedFullName = teamName.trim();
+    } else if (role === 'Shelter') {
+      if (!shelterName || !shelterName.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Shelter Facility Name is required',
+        });
+      }
+      if (shelterName.trim().length < 3) {
+        return res.status(400).json({
+          success: false,
+          message: 'Shelter Facility Name must be at least 3 characters',
+        });
+      }
+      resolvedFullName = shelterName.trim();
+    } else {
+      // Public User & Veterinary Staff require standard personal full name
+      if (!resolvedFullName) {
+        return res.status(400).json({
+          success: false,
+          message: 'Full Name is required',
+        });
+      }
+
+      if (resolvedFullName.length < 2 || !/^[a-zA-Z\s.]+$/.test(resolvedFullName)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Full Name must be at least 2 characters and contain only letters, dots, and spaces',
+        });
+      }
+    }
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address is required',
+      });
+    }
+
+    const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid email address (e.g. name@example.com)',
+      });
+    }
+
+    if (!phoneNumber || !phoneNumber.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number is required',
+      });
+    }
+
+    const cleanPhone = phoneNumber.trim().replace(/\D/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number must be a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9',
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Temporary password is required',
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Temporary password must be at least 8 characters long',
+      });
+    }
+
+    // Role-specific validations
+    if (role === 'Rescue Team') {
+      if (!vehicleType) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vehicle type is required for Rescue Team',
+        });
+      }
+      if (!vehicleNumber || !vehicleNumber.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vehicle registration number is required for Rescue Team',
+        });
+      }
+      const vNum = vehicleNumber.trim().toUpperCase();
+      if (!/^[A-Z]{2}[ -]?[0-9]{1,2}[ -]?[A-Z]{1,3}[ -]?[0-9]{4}$/i.test(vNum)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Enter a valid Indian vehicle number (e.g. KL-07-AB-1234)',
+        });
+      }
+      if (!operatingDistrict || !operatingDistrict.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Operating District is required for Rescue Team',
+        });
+      }
+    } else if (role === 'Shelter') {
+      if (!registrationType) {
+        return res.status(400).json({
+          success: false,
+          message: 'Registration Type is required for Shelter',
+        });
+      }
+      if (!registrationNumber || registrationNumber.trim().length < 3) {
+        return res.status(400).json({
+          success: false,
+          message: 'Registration Number is required for Shelter (min 3 characters)',
+        });
+      }
+      const numCages = Number(totalCages);
+      if (isNaN(numCages) || numCages < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Total cages must be a positive number of at least 1',
+        });
+      }
+    } else if (role === 'Veterinary Staff') {
+      if (!position) {
+        return res.status(400).json({
+          success: false,
+          message: 'Position is required for Veterinary Staff (e.g. Veterinary Doctor or Veterinary Nurse)',
+        });
+      }
+      if (!councilRegistrationNumber || councilRegistrationNumber.trim().length < 4) {
+        return res.status(400).json({
+          success: false,
+          message: 'Council Registration Number is mandatory for Veterinary Staff (min 4 characters)',
+        });
+      }
+      if (!qualification || !qualification.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Qualification is required for Veterinary Staff',
+        });
+      }
+      if (!shelterId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please assign the Veterinary Staff to a Shelter',
+        });
+      }
     }
 
     // Check if email is already registered
@@ -268,29 +460,131 @@ exports.createUser = async (req, res) => {
       });
     }
 
+    // Provision user in Firebase Auth if available
+    let firebaseUid = null;
+    try {
+      const fbUser = await getAuth().createUser({
+        email: email.toLowerCase().trim(),
+        password: password,
+        displayName: resolvedFullName,
+      });
+      firebaseUid = fbUser.uid;
+    } catch (fbErr) {
+      console.warn('Firebase Auth creation skipped/failed:', fbErr.message);
+    }
+
+    // Create User record in MongoDB
     const newUser = await User.create({
-      fullName: fullName.trim(),
+      fullName: resolvedFullName,
       email: email.toLowerCase().trim(),
-      phoneNumber: phoneNumber.trim(),
+      phoneNumber: cleanPhone,
       password,
       role,
       address: address.trim(),
       city: city.trim(),
-      district: district.trim(),
-      state: state.trim(),
+      district: district.trim() || operatingDistrict?.trim() || '',
+      state: state.trim() || 'Kerala',
       pincode: pincode.trim(),
       status,
       isEmailVerified: Boolean(isEmailVerified),
       isPhoneVerified: Boolean(isPhoneVerified),
+      dob: dob ? new Date(dob) : null,
+      ...(firebaseUid ? { firebaseUid } : {}),
     });
+
+    let roleRecord = null;
+
+    // Create corresponding entity based on role
+    if (role === 'Rescue Team') {
+      roleRecord = await RescueTeam.create({
+        userId: newUser._id,
+        teamName: resolvedFullName,
+        vehicleNumber: vehicleNumber.trim().toUpperCase(),
+        vehicleType,
+        operatingDistrict: operatingDistrict.trim(),
+        contactPhone: cleanPhone,
+        latitude: latitude ? Number(latitude) : 9.9312,
+        longitude: longitude ? Number(longitude) : 76.2673,
+        currentLocation: {
+          latitude: latitude ? Number(latitude) : 9.9312,
+          longitude: longitude ? Number(longitude) : 76.2673,
+          updatedAt: new Date(),
+        },
+        availability: availability || 'Available',
+        status: status === 'Active' ? 'Active' : 'Inactive',
+      });
+    } else if (role === 'Shelter') {
+      const shelterContactNum = shelterPhoneNumber
+        ? Number(String(shelterPhoneNumber).replace(/\D/g, '').slice(-10))
+        : Number(cleanPhone);
+
+      roleRecord = await Shelter.create({
+        userId: newUser._id,
+        shelterName: resolvedFullName,
+        registrationType: registrationType || 'STATE_TRUST_SOCIETY',
+        registrationNumber: registrationNumber.trim().toUpperCase(),
+        shelterEmail: (shelterEmail || email).toLowerCase().trim(),
+        shelterPhoneNumber: shelterContactNum || Number(cleanPhone),
+        latitude: latitude ? Number(latitude) : 9.9312,
+        longitude: longitude ? Number(longitude) : 76.2673,
+        totalStaffs: totalStaffs !== undefined ? Math.max(0, Number(totalStaffs)) : 1,
+        totalCages: Math.max(1, Number(totalCages) || 10),
+        occupiedCages: occupiedCages !== undefined ? Math.max(0, Number(occupiedCages)) : 0,
+        shelterStatus: shelterStatus || 'OPEN',
+        status: status === 'Active' ? 'Active' : 'Inactive',
+      });
+    } else if (role === 'Veterinary Staff') {
+      let targetShelter = null;
+      if (shelterId) {
+        targetShelter = await Shelter.findById(shelterId);
+      }
+      if (!targetShelter) {
+        targetShelter = await Shelter.findOne({ status: 'Active' });
+      }
+
+      if (targetShelter) {
+        roleRecord = await VetStaff.create({
+          shelterId: targetShelter._id,
+          userId: newUser._id,
+          fullName: resolvedFullName,
+          email: email.toLowerCase().trim(),
+          phone: cleanPhone,
+          councilRegistrationNumber: councilRegistrationNumber.trim(),
+          qualification: qualification?.trim() || 'BVSc & AH',
+          specialization: specialization?.trim() || 'General Practice',
+          position: position || 'Veterinary Doctor',
+          experience: experience !== undefined ? Math.max(0, Number(experience)) : 0,
+          joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
+          availability: 'Available',
+          status: status === 'Active' ? 'Active' : 'Inactive',
+        });
+      }
+    }
+
+    // Dispatch credentials email with temporary password to the user's email address
+    let emailSent = false;
+    try {
+      const emailRes = await sendAdminCreatedUserEmail(newUser.email, {
+        fullName: newUser.fullName,
+        role: newUser.role,
+        temporaryPassword: password,
+        roleDetails: roleRecord ? roleRecord.toObject() : {},
+      });
+      emailSent = emailRes?.success || false;
+      console.log(`📧 Credentials email sent to ${newUser.email}:`, emailSent);
+    } catch (emailErr) {
+      console.warn('Failed to send admin created user email:', emailErr.message);
+    }
 
     const userObj = newUser.toObject();
     delete userObj.password;
 
     res.status(201).json({
       success: true,
-      message: 'User created successfully',
+      message: `User "${userObj.fullName}" created successfully as ${userObj.role}. Temporary password sent to ${newUser.email}.`,
       user: userObj,
+      roleRecord,
+      emailSent,
     });
   } catch (error) {
     console.error('Error creating user:', error.message);

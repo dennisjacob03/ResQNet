@@ -347,6 +347,420 @@ const sendShelterApprovalEmail = async (email, { shelterName, shelterNumber, she
   return sendEmail({ to: email, subject, html });
 };
 
+/**
+ * Send Rescue Team Registration Approval Email
+ */
+const sendRescueTeamApprovalEmail = async (
+  email,
+  { teamName, teamId, rescueTeamNumber, vehicleNumber, vehicleType, district, loginUrl }
+) => {
+  const subject = `🚑 Rescue Team Approved - Welcome to ResQNet Emergency Response!`;
+  const portalUrl = loginUrl || `${process.env.CLIENT_URL || 'http://localhost:5173'}/dashboard`;
+
+  const html = getBaseEmailHtml(
+    subject,
+    `
+    <span class="badge" style="background-color: #dbeafe; color: #1e40af;">Rescue Team Certified</span>
+    <h2 style="color: #1e40af; margin-top: 0;">Congratulations, ${teamName}!</h2>
+    <p>Following a successful team valuation and readiness inspection by the ResQNet Administration team, your registration as an official <strong>Emergency Animal Rescue Team</strong> has been approved.</p>
+    
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 20px 0;">
+      <h3 style="margin: 0 0 12px 0; color: #0f172a; font-size: 15px;">Your Certified Rescue Team Details</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <tr>
+          <td style="padding: 6px 0; color: #64748b; width: 160px;"><strong>Team ID:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${teamId || 'RT-0001'}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Rescue Call Number:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #1e40af;">${rescueTeamNumber || 'RTN001'}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Certified Vehicle:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${vehicleNumber} (${vehicleType})</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Operating District:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${district || 'Assigned Territory'}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Status:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #15803d;">Active & Available for Dispatch</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; font-size: 13px; color: #065f46;">
+      <strong>🛡️ Responder Role Activated:</strong> Your account role has been upgraded to <strong>Rescue Team</strong>. You are now authorized to receive SOS animal emergency alerts in your operating district.
+    </div>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${portalUrl}" class="button" style="background-color: #2563eb; display: inline-block;">Open Rescue Operations Dashboard</a>
+    </div>
+
+    <p style="font-size: 13px; color: #64748b; margin-top: 20px;">Thank you for serving as the frontline for animal protection. Always prioritize safety in field rescue operations.</p>
+    `
+  );
+
+  return sendEmail({ to: email, subject, html });
+};
+
+/**
+ * Send Volunteer Certification & Approval Email
+ */
+const sendVolunteerApprovalEmail = async (email, details = {}) => {
+  const {
+    volunteerName = 'Community Volunteer',
+    volunteerId = 'VOL-0001',
+    district = 'Kerala',
+    interests = ['Animal Care'],
+  } = details;
+
+  const subject = `🤝 Welcome to ResQNet! Volunteer Badge Certified [${volunteerId}]`;
+  const portalUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/dashboard`;
+
+  const interestsDisplay = Array.isArray(interests) ? interests.join(', ') : interests;
+
+  const html = getBaseEmailHtml(
+    subject,
+    `
+    <span class="badge" style="background-color: #dcfce7; color: #166534;">Volunteer Certified</span>
+    <h2 style="color: #237737; margin-top: 0; font-size: 20px;">Volunteer Orientation Verified & Approved! 🤝</h2>
+    <p>Dear <strong>${volunteerName}</strong>,</p>
+    <p>Congratulations! Following your volunteer orientation and verification session, your application has been officially <strong>Approved</strong>. You are now a certified community volunteer with <strong>ResQNet Animal Rescue & Shelter Network</strong>.</p>
+
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin: 20px 0;">
+      <h3 style="color: #0f172a; margin-top: 0; font-size: 15px; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px;">Official Volunteer Credentials</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <tr>
+          <td style="padding: 6px 0; color: #64748b; width: 160px;"><strong>Volunteer Badge ID:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #237737; font-size: 16px;">${volunteerId}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Volunteer Name:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${volunteerName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Operating District:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${district || 'Kerala'}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Service Focus:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${interestsDisplay}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Orientation Status:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #15803d;">✓ Verified & Active</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; font-size: 13px; color: #166534;">
+      <strong>🌟 Active Volunteer Status:</strong> You are now authorized to participate in shelter visits, care activities, foster coordination, and community adoption drives.
+    </div>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${portalUrl}" class="button" style="background-color: #237737; display: inline-block;">Open Volunteer Portal</a>
+    </div>
+
+    <p style="font-size: 13px; color: #64748b; margin-top: 20px;">Thank you for dedicating your time and passion to helping animals in need.</p>
+    `
+  );
+
+  return sendEmail({ to: email, subject, html });
+};
+
+/**
+ * Send Veterinary Staff Interview Scheduled Email
+ */
+const sendVetInterviewScheduledEmail = async (email, details = {}) => {
+  const {
+    applicantName = 'Doctor',
+    applicationId = 'VSA-0001',
+    shelterName = 'Shelter Clinic',
+    interviewDate = new Date(),
+    timeSlot = '10:00 AM - 12:00 PM',
+    location = 'Shelter Veterinary Wing',
+    interviewer = 'Senior Veterinarian / Shelter Manager',
+    notes = '',
+  } = details;
+
+  const dateFormatted = new Date(interviewDate).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const subject = `🩺 ResQNet Veterinary Interview Scheduled: ${shelterName} [${applicationId}]`;
+  const portalUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/dashboard`;
+
+  const html = getBaseEmailHtml(
+    subject,
+    `
+    <span class="badge" style="background-color: #e0f2fe; color: #0369a1;">Interview Scheduled</span>
+    <h2 style="color: #0369a1; margin-top: 0; font-size: 20px;">Clinical Interview & Shelter Visit Scheduled 🩺</h2>
+    <p>Dear <strong>${applicantName}</strong>,</p>
+    <p>Thank you for applying to join the veterinary staff network with <strong>ResQNet</strong>. The veterinary review board at <strong>${shelterName}</strong> has reviewed your credentials and scheduled your clinic interview & competency assessment.</p>
+
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin: 20px 0;">
+      <h3 style="color: #0f172a; margin-top: 0; font-size: 15px; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px;">Interview Appointment Details</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <tr>
+          <td style="padding: 6px 0; color: #64748b; width: 160px;"><strong>Application ID:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0284c7;">${applicationId}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Host Shelter:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${shelterName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Date & Time:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0369a1;">${dateFormatted} • ${timeSlot}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Clinic Location:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${location}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Interviewer:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${interviewer}</td>
+        </tr>
+        ${
+          notes
+            ? `<tr><td style="padding: 6px 0; color: #64748b;"><strong>Preparation Notes:</strong></td><td style="padding: 6px 0; color: #334155;">${notes}</td></tr>`
+            : ''
+        }
+      </table>
+    </div>
+
+    <div style="background-color: #f0f9ff; border-left: 4px solid #0284c7; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; font-size: 13px; color: #0369a1;">
+      <strong>📋 Items to bring:</strong> Please bring your original Veterinary Council registration certificate, degree certificates, and identification proof.
+    </div>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${portalUrl}" class="button" style="background-color: #0284c7; display: inline-block;">View Application Portal</a>
+    </div>
+
+    <p style="font-size: 13px; color: #64748b; margin-top: 20px;">We look forward to meeting you and collaborating to ensure exceptional veterinary medical care for rescued shelter animals.</p>
+    `
+  );
+
+  return sendEmail({ to: email, subject, html });
+};
+
+/**
+ * Send Veterinary Staff Approval & Shelter Assignment Email
+ */
+const sendVetStaffApprovalEmail = async (email, details = {}) => {
+  const {
+    staffName = 'Doctor',
+    vetStaffId = 'VS-0001',
+    vetStaffNumber = 'VSN001',
+    position = 'Veterinary Doctor',
+    shelterName = 'ResQNet Animal Shelter',
+    councilNumber = '',
+    loginEmail = email,
+    hasCustomPassword = true,
+    tempPassword = '',
+    loginUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/login`,
+  } = details;
+
+  const subject = `🎉 Congratulations! Veterinary Staff Approved & Assigned to ${shelterName} [${vetStaffId}]`;
+
+  const html = getBaseEmailHtml(
+    subject,
+    `
+    <span class="badge" style="background-color: #dcfce7; color: #166534;">Officially Appointed</span>
+    <h2 style="color: #237737; margin-top: 0; font-size: 20px;">Veterinary Staff Assignment Confirmed! 🩺🐾</h2>
+    <p>Dear <strong>${staffName}</strong>,</p>
+    <p>Congratulations! Following your clinical interview and evaluation report, your application has been officially <strong>Approved</strong>. You are now appointed as <strong>${position}</strong> at <strong>${shelterName}</strong>.</p>
+
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin: 20px 0;">
+      <h3 style="color: #0f172a; margin-top: 0; font-size: 15px; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px;">Official Clinical Appointment Credentials</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <tr>
+          <td style="padding: 6px 0; color: #64748b; width: 160px;"><strong>Vet Staff ID:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #237737; font-size: 16px;">${vetStaffId} (${vetStaffNumber})</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Role / Position:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${position}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Assigned Shelter:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #237737;">${shelterName}</td>
+        </tr>
+        ${
+          councilNumber
+            ? `<tr><td style="padding: 6px 0; color: #64748b;"><strong>Council Reg No:</strong></td><td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${councilNumber}</td></tr>`
+            : ''
+        }
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Dashboard Email:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0284c7;">${loginEmail}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Dashboard Password:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${
+            hasCustomPassword
+              ? 'Your chosen registration password'
+              : `<span style="font-family: monospace; background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">${tempPassword}</span>`
+          }</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Account Role:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #166534;">✓ Upgraded to Veterinary Staff</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; font-size: 13px; color: #166534;">
+      <strong>🌟 Clinical Dashboard Access:</strong> When you log into ResQNet with your dashboard credentials, you have full access to the <strong>Veterinary Dashboard</strong>. You can view shelter animals, enter visit reports, log surgeries, track vaccinations, and dispatch reminders directly to the shelter.
+    </div>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${loginUrl}" class="button" style="background-color: #237737; display: inline-block;">Log In to Veterinary Dashboard</a>
+    </div>
+
+    <p style="font-size: 13px; color: #64748b; margin-top: 20px;">Thank you for serving on the healthcare frontline of animal welfare.</p>
+    `
+  );
+
+  return sendEmail({ to: email, subject, html });
+};
+
+/**
+ * Send Animal Medical / Vaccination Reminder Email to Shelter
+ */
+const sendShelterAnimalMedicalReminderEmail = async (shelterEmail, details = {}) => {
+  const {
+    shelterName = 'Shelter',
+    animalName = 'Animal',
+    animalId = 'ANM-0001',
+    species = 'Dog',
+    reminderType = 'Vaccination Due',
+    dueDate = new Date(),
+    notes = '',
+    vetName = 'Shelter Veterinarian',
+  } = details;
+
+  const dateFormatted = new Date(dueDate).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+
+  const subject = `⚠️ Medical Alert for ${animalName} (${species}): ${reminderType} Scheduled`;
+  const portalUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/dashboard`;
+
+  const html = getBaseEmailHtml(
+    subject,
+    `
+    <span class="badge" style="background-color: #ffedd5; color: #c2410c;">Priority Healthcare Reminder</span>
+    <h2 style="color: #c2410c; margin-top: 0; font-size: 20px;">Medical Alert for ${animalName} 🐾</h2>
+    <p>Dear <strong>${shelterName} Care Team</strong>,</p>
+    <p>Your attending veterinary staff member <strong>${vetName}</strong> has issued an important healthcare reminder for shelter resident <strong>${animalName}</strong> [${animalId}].</p>
+
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin: 20px 0;">
+      <h3 style="color: #0f172a; margin-top: 0; font-size: 15px; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px;">Scheduled Medical Event</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <tr>
+          <td style="padding: 6px 0; color: #64748b; width: 150px;"><strong>Animal:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${animalName} (${species}) - ${animalId}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Alert Type:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #ea580c;">${reminderType}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Scheduled Due Date:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${dateFormatted}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;"><strong>Issued By:</strong></td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${vetName}</td>
+        </tr>
+        ${
+          notes
+            ? `<tr><td style="padding: 6px 0; color: #64748b;"><strong>Clinical Notes:</strong></td><td style="padding: 6px 0; color: #334155;">${notes}</td></tr>`
+            : ''
+        }
+      </table>
+    </div>
+
+    <div style="background-color: #fff7ed; border-left: 4px solid #ea580c; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; font-size: 13px; color: #9a3412;">
+      <strong>⚠️ Action Requested:</strong> Please prepare the patient, isolate if needed for pre-op fasting or vaccination safety, and ensure animal handling staff are available on the scheduled date.
+    </div>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${portalUrl}" class="button" style="background-color: #ea580c; display: inline-block;">View in Shelter Dashboard</a>
+    </div>
+    `
+  );
+
+  return sendEmail({ to: shelterEmail, subject, html });
+};
+
+/**
+ * Send Credentials Email to User Created by Administrator
+ */
+const sendAdminCreatedUserEmail = async (email, details = {}) => {
+  const {
+    fullName = 'User',
+    role = 'Public User',
+    temporaryPassword = '',
+    roleDetails = {},
+  } = details;
+
+  const subject = `Welcome to ResQNet - Your Admin Provisioned Account [${role}]`;
+  const portalUrl = process.env.CLIENT_URL ? `${process.env.CLIENT_URL}/login` : 'http://localhost:5173/login';
+
+  const html = getBaseEmailHtml(
+    subject,
+    `
+    <span class="badge" style="background-color: #dbeafe; color: #1e40af;">Account Created by Administrator</span>
+    <h2 style="color: #0f172a; margin-top: 0;">Welcome, ${fullName}!</h2>
+    <p>An official <strong>${role}</strong> account has been provisioned for you on the <strong>ResQNet</strong> Emergency Animal Rescue Network platform by an Administrator.</p>
+    
+    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 20px 0;">
+      <h3 style="margin-top: 0; color: #1e293b; font-size: 15px; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px;">🔐 Your Login Credentials</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+        <tr>
+          <td style="padding: 6px 0; color: #64748b; width: 150px;">Login Email:</td>
+          <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${email}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #64748b;">Assigned Role:</td>
+          <td style="padding: 6px 0; font-weight: bold; color: #237737;">${role}</td>
+        </tr>
+        ${
+          temporaryPassword
+            ? `<tr>
+                <td style="padding: 6px 0; color: #64748b;">Temporary Password:</td>
+                <td style="padding: 6px 0;">
+                  <code style="background: #e2e8f0; color: #0f172a; padding: 4px 10px; border-radius: 6px; font-size: 15px; font-weight: bold; letter-spacing: 0.5px;">${temporaryPassword}</code>
+                </td>
+              </tr>`
+            : ''
+        }
+      </table>
+    </div>
+
+    <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 16px 0; font-size: 13px; color: #92400e;">
+      <strong>⚠️ Security Notice:</strong> This temporary password was issued by your administrator. For your security, please log in and change your password in your Profile settings immediately.
+    </div>
+
+    <div style="text-align: center; margin: 28px 0 16px 0;">
+      <a href="${portalUrl}" class="button" style="background-color: #237737; display: inline-block;">Log In to ResQNet</a>
+    </div>
+    `
+  );
+
+  return sendEmail({ to: email, subject, html });
+};
+
 module.exports = {
   transporter,
   verifyTransporter,
@@ -357,4 +771,12 @@ module.exports = {
   sendAdoptionStatusEmail,
   sendVerificationEmail,
   sendShelterApprovalEmail,
+  sendRescueTeamApprovalEmail,
+  sendVolunteerApprovalEmail,
+  sendVetInterviewScheduledEmail,
+  sendVetStaffApprovalEmail,
+  sendShelterAnimalMedicalReminderEmail,
+  sendAdminCreatedUserEmail,
 };
+
+

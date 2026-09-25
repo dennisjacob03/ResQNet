@@ -8,20 +8,63 @@ const medicalReminderSchema = new mongoose.Schema(
     },
     medicineRecordId: {
       type: String,
-      required: [true, 'Medicine record ID is required'],
+      default: '',
       ref: 'MedicineRecord',
+    },
+    shelterId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Shelter',
+      default: null,
+    },
+    animalId: {
+      type: String,
+      default: '',
+      ref: 'Animal',
+    },
+    animalObjectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Animal',
+      default: null,
+    },
+    animalName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    reminderType: {
+      type: String,
+      enum: ['Vaccination Due', 'Post-Op Checkup', 'Routine Examination', 'Medication Schedule'],
+      default: 'Vaccination Due',
     },
     reminderTime: {
       type: Date,
-      required: [true, 'Reminder time is required'],
+      default: Date.now,
+    },
+    dueDate: {
+      type: Date,
+      default: null,
+    },
+    notes: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    sentByVetName: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    shelterNotified: {
+      type: Boolean,
+      default: true,
     },
     status: {
       type: String,
       enum: {
-        values: ['Pending', 'Completed', 'Missed'],
+        values: ['Pending', 'Completed', 'Missed', 'Sent'],
         message: '{VALUE} is not a valid reminder status',
       },
-      default: 'Pending',
+      default: 'Sent',
     },
   },
   {

@@ -114,7 +114,50 @@ const authorizeRoles = (...roles) => {
   };
 };
 
+// Ensure public users have fully completed their profile before performing database modifications
+const requireCompleteProfile = (req, res, next) => {
+  const user = req.user;
+  if (!user) {
+    return res.status(401).json({ success: false, message: 'Not authorized' });
+  }
+
+  // Only enforce this restriction for Public User role
+  if (user.role === 'Public User') {
+    const rawPhone = (user.phoneNumber || '').replace(/\D/g, '');
+    const isPhoneValid = rawPhone.length === 10 && user.phoneNumber !== 'Not provided';
+    const hasName = Boolean(user.fullName && user.fullName.trim().length >= 2);
+    const hasState = Boolean(user.state && user.state.trim().length > 0);
+    const hasDistrict = Boolean(user.district && user.district.trim().length > 0);
+    const hasCity = Boolean(user.city && user.city.trim().length > 0);
+    const hasPincode = Boolean(user.pincode && /^\d{6}$/.test(String(user.pincode).trim()));
+    const hasAddress = Boolean(user.address && user.address.trim().length >= 3);
+    const hasDob = Boolean(user.dob);
+
+    const isComplete =
+      hasName &&
+      isPhoneValid &&
+      hasState &&
+      hasDistrict &&
+      hasCity &&
+      hasPincode &&
+      hasAddress &&
+      hasDob;
+
+    if (!isComplete) {
+      return res.status(403).json({
+        success: false,
+        profileIncomplete: true,
+        message:
+          'Action restricted: You must fully update your profile (contact number, state, district, city, pincode, residential address, and date of birth) before performing this action.',
+      });
+    }
+  }
+
+  next();
+};
+
 module.exports = {
   protect,
   authorizeRoles,
+  requireCompleteProfile,
 };

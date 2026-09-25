@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { getPublicStats } from '../../services/statsService';
 import logoImage from '../../assets/logo.png';
 import goldenRetriever from '../../assets/golden-retriever.jpg';
 import { Mail, Phone, Globe, Share2, MessageSquare, ArrowUpRight, 
@@ -27,6 +28,50 @@ const LandingPage = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  const [stats, setStats] = useState({
+    animalsRescued: 0,
+    activeRescuers: 0,
+    partnerShelters: 0,
+    petsAdopted: 0,
+    liveRescues: 0,
+    latestRescue: null,
+  });
+  const [stories, setStories] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    getPublicStats()
+      .then((data) => {
+        if (!isMounted) return;
+        if (data?.stats) {
+          setStats(data.stats);
+        }
+        if (data?.stories && data.stories.length > 0) {
+          setStories(data.stories);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to load public stats on LandingPage:', err.message);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const formatTimeAgo = (dateStr) => {
+    if (!dateStr) return 'Recently';
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    if (diffMs < 0) return 'Recently';
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins} min ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    return 'Recently';
+  };
 
   const handleReportClick = () => {
     if (user) {
@@ -250,7 +295,7 @@ const LandingPage = () => {
                         <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Live Rescues</span>
                       </div>
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-2xl font-black text-[#237737]">24</span>
+                        <span className="text-2xl font-black text-[#237737]">{stats.liveRescues}</span>
                         <span className="text-xs text-slate-400 font-medium">active now</span>
                       </div>
                     </div>
@@ -264,7 +309,10 @@ const LandingPage = () => {
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Latest rescue</span>
                       <span className="text-xs sm:text-sm font-extrabold text-[#151c28] block truncate">
-                        Golden Retriever · <span className="text-slate-500 font-normal">8 min ago</span>
+                        {stats.latestRescue?.breed || stats.latestRescue?.animalType || 'Golden Retriever'} ·{' '}
+                        <span className="text-slate-500 font-normal">
+                          {formatTimeAgo(stats.latestRescue?.createdAt)}
+                        </span>
                       </span>
                     </div>
                   </div>
@@ -283,7 +331,7 @@ const LandingPage = () => {
               
               <div className="pt-4 md:pt-0">
                 <div className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight">
-                  12,480
+                  {stats.animalsRescued.toLocaleString()}
                 </div>
                 <div className="mt-1 text-xs sm:text-sm font-semibold text-emerald-100/90 tracking-wide">
                   Animals Rescued
@@ -292,7 +340,7 @@ const LandingPage = () => {
 
               <div className="pt-4 md:pt-0">
                 <div className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight">
-                  3,240
+                  {stats.activeRescuers.toLocaleString()}
                 </div>
                 <div className="mt-1 text-xs sm:text-sm font-semibold text-emerald-100/90 tracking-wide">
                   Active Rescuers
@@ -301,7 +349,7 @@ const LandingPage = () => {
 
               <div className="pt-4 md:pt-0">
                 <div className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight">
-                  186
+                  {stats.partnerShelters.toLocaleString()}
                 </div>
                 <div className="mt-1 text-xs sm:text-sm font-semibold text-emerald-100/90 tracking-wide">
                   Partner Shelters
@@ -310,7 +358,7 @@ const LandingPage = () => {
 
               <div className="pt-4 md:pt-0">
                 <div className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight">
-                  8,920
+                  {stats.petsAdopted.toLocaleString()}
                 </div>
                 <div className="mt-1 text-xs sm:text-sm font-semibold text-emerald-100/90 tracking-wide">
                   Pets Adopted
@@ -464,73 +512,54 @@ const LandingPage = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              
-              {/* Story 1 */}
-              <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-200/80 flex flex-col">
-                <img
-                  src="https://images.unsplash.com/photo-1552053831-71594a27632d?q=80&w=600&auto=format&fit=crop"
-                  alt="Rescued Dog Max"
-                  className="w-full h-48 object-cover"
-                />
-                <div className="p-6 flex-grow flex flex-col justify-between space-y-4">
-                  <div>
-                    <span className="text-[11px] font-bold text-[#237737] bg-[#edf7ef] px-2.5 py-1 rounded-md">Rescued in 12 Mins</span>
-                    <h4 className="text-lg font-bold text-[#151c28] mt-3">Max - Golden Retriever</h4>
-                    <p className="text-slate-600 text-xs mt-2 leading-relaxed">
-                      "Found injured on Highway 102. ResQNet's AI triage flagged him high priority and the dispatch team arrived with medical splints in 12 minutes."
-                    </p>
+              {stories.length > 0 ? (
+                stories.slice(0, 3).map((story) => (
+                  <div
+                    key={story.id || story.name}
+                    className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-200/80 flex flex-col hover:shadow-md transition-shadow"
+                  >
+                    <img
+                      src={
+                        story.photo ||
+                        'https://images.unsplash.com/photo-1552053831-71594a27632d?q=80&w=600&auto=format&fit=crop'
+                      }
+                      alt={story.name}
+                      className="w-full h-48 object-cover"
+                    />
+                    <div className="p-6 flex-grow flex flex-col justify-between space-y-4">
+                      <div>
+                        <span className="text-[11px] font-bold text-[#237737] bg-[#edf7ef] px-2.5 py-1 rounded-md">
+                          {story.tag || 'Rescued Life'}
+                        </span>
+                        <h4 className="text-lg font-bold text-[#151c28] mt-3">
+                          {story.name} - {story.breed || story.species}
+                        </h4>
+                        <p className="text-slate-600 text-xs mt-2 leading-relaxed">
+                          "{story.description}"
+                        </p>
+                      </div>
+                      <div className="pt-3 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-between font-medium">
+                        <span>Location: {story.location}</span>
+                        <span
+                          className={`font-bold ${
+                            story.status === 'Adopted'
+                              ? 'text-purple-600'
+                              : story.status === 'Available'
+                              ? 'text-emerald-600'
+                              : 'text-slate-600'
+                          }`}
+                        >
+                          {story.status}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="pt-3 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-between font-medium">
-                    <span>Location: North Sector</span>
-                    <span>Adopted</span>
-                  </div>
+                ))
+              ) : (
+                <div className="col-span-3 text-center py-10 text-slate-400 text-sm font-semibold">
+                  No rescue stories published yet.
                 </div>
-              </div>
-
-              {/* Story 2 */}
-              <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-200/80 flex flex-col">
-                <img
-                  src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?q=80&w=600&auto=format&fit=crop"
-                  alt="Rescued Kitten Milo"
-                  className="w-full h-48 object-cover"
-                />
-                <div className="p-6 flex-grow flex flex-col justify-between space-y-4">
-                  <div>
-                    <span className="text-[11px] font-bold text-[#237737] bg-[#edf7ef] px-2.5 py-1 rounded-md">IoT Collar Tracked</span>
-                    <h4 className="text-lg font-bold text-[#151c28] mt-3">Milo - Tabby Kitten</h4>
-                    <p className="text-slate-600 text-xs mt-2 leading-relaxed">
-                      "Equipped with a smart collar during shelter intake. When Milo wandered out of bounds, geofencing alerts notified rescuers immediately."
-                    </p>
-                  </div>
-                  <div className="pt-3 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-between font-medium">
-                    <span>Location: Shelter Hub B</span>
-                    <span>Reunited</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Story 3 */}
-              <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-200/80 flex flex-col">
-                <img
-                  src="https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?q=80&w=600&auto=format&fit=crop"
-                  alt="Rescued Puppy Bella"
-                  className="w-full h-48 object-cover"
-                />
-                <div className="p-6 flex-grow flex flex-col justify-between space-y-4">
-                  <div>
-                    <span className="text-[11px] font-bold text-[#237737] bg-[#edf7ef] px-2.5 py-1 rounded-md">Vet EHR Managed</span>
-                    <h4 className="text-lg font-bold text-[#151c28] mt-3">Bella - Mixed Breed</h4>
-                    <p className="text-slate-600 text-xs mt-2 leading-relaxed">
-                      "Underwent emergency surgery tracked step-by-step on ResQNet EHR. Today, Bella is thriving with her loving foster family."
-                    </p>
-                  </div>
-                  <div className="pt-3 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-between font-medium">
-                    <span>Location: St. Jude Vet</span>
-                    <span>Adopted</span>
-                  </div>
-                </div>
-              </div>
-
+              )}
             </div>
           </div>
         </section>

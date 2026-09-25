@@ -1,4 +1,5 @@
 const Shelter = require('./shelterModel');
+const ShelterApplication = require('./shelterApplicationModel');
 const User = require('../users/userModel');
 const Capacity = require('./capacityModel');
 const Cage = require('./cageModel');
@@ -49,6 +50,49 @@ const checkShelterSetupReadiness = async (shelterId) => {
 // @access  Public / Authenticated
 const getAllShelters = async (req, res) => {
   try {
+    // Auto-sync: Ensure all approved shelter applications have a corresponding Shelter record
+    try {
+      const approvedApps = await ShelterApplication.find({
+        $or: [{ applicationStatus: 'Approved' }, { status: 'Approved' }],
+      }).lean();
+
+      for (const app of approvedApps) {
+        const queryConditions = [];
+        if (app.shelterApplicationId) {
+          queryConditions.push({ shelterApplicationId: app.shelterApplicationId });
+        }
+        if (app.shelterEmail) {
+          queryConditions.push({ shelterEmail: app.shelterEmail.toLowerCase().trim() });
+        }
+        if (app.userId) {
+          queryConditions.push({ userId: app.userId });
+        }
+        if (queryConditions.length > 0) {
+          const existing = await Shelter.findOne({ $or: queryConditions });
+          if (!existing) {
+            await Shelter.create({
+              shelterApplicationId: app.shelterApplicationId,
+              userId: app.userId,
+              registrationType: app.registrationType || 'STATE_TRUST_SOCIETY',
+              registrationNumber: app.registrationNumber || '',
+              shelterName: app.shelterName || 'Approved Shelter',
+              shelterEmail: (app.shelterEmail || '').toLowerCase().trim(),
+              shelterPhoneNumber: app.shelterPhoneNumber,
+              latitude: app.latitude,
+              longitude: app.longitude,
+              totalStaffs: app.totalStaffs || 0,
+              totalCages: app.totalCages || 0,
+              occupiedCages: app.occupiedCages || 0,
+              shelterStatus: 'UNDER_MAINTENANCE',
+              status: 'Active',
+            });
+          }
+        }
+      }
+    } catch (syncErr) {
+      console.warn('Shelter application auto-sync warning:', syncErr.message);
+    }
+
     const { search, status, shelterStatus, currentStatus } = req.query;
     const filter = { isDeleted: { $ne: true } };
 
@@ -56,18 +100,28 @@ const getAllShelters = async (req, res) => {
       filter.status = status;
     }
 
+    const conditions = [];
+
     const opStatus = shelterStatus || currentStatus;
     if (opStatus && opStatus !== 'All') {
-      filter.$or = [{ shelterStatus: opStatus }, { currentStatus: opStatus }];
+      conditions.push({
+        $or: [{ shelterStatus: opStatus }, { currentStatus: opStatus }],
+      });
     }
 
     if (search && search.trim()) {
       const term = search.trim();
-      filter.$or = [
-        { shelterName: { $regex: term, $options: 'i' } },
-        { shelterNumber: { $regex: term, $options: 'i' } },
-        { shelterEmail: { $regex: term, $options: 'i' } },
-      ];
+      conditions.push({
+        $or: [
+          { shelterName: { $regex: term, $options: 'i' } },
+          { shelterNumber: { $regex: term, $options: 'i' } },
+          { shelterEmail: { $regex: term, $options: 'i' } },
+        ],
+      });
+    }
+
+    if (conditions.length > 0) {
+      filter.$and = conditions;
     }
 
     const shelters = await Shelter.find(filter)

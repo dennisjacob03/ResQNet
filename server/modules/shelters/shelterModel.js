@@ -115,6 +115,9 @@ shelterSchema.pre('save', async function () {
     const nextSeq = maxSeq + 1;
     this.shelterNumber = `SH-${String(nextSeq).padStart(4, '0')}`;
   }
+  if (!this.shelterId) {
+    this.shelterId = this.shelterNumber;
+  }
 });
 
 module.exports = mongoose.model('Shelter', shelterSchema);

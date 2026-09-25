@@ -53,6 +53,7 @@ const submitApplication = async (req, res) => {
       shelterName,
       shelterEmail,
       shelterPhoneNumber,
+      password = '',
       latitude,
       longitude,
       totalStaffs,
@@ -90,6 +91,7 @@ const submitApplication = async (req, res) => {
       shelterName: shelterName.trim(),
       shelterEmail: email,
       shelterPhoneNumber: Number(shelterPhoneNumber),
+      password: password ? password.trim() : '',
       latitude: parseFloat(latitude),
       longitude: parseFloat(longitude),
       totalStaffs: Number(totalStaffs),
@@ -347,7 +349,8 @@ const reviewApplication = async (req, res) => {
 
     // On Approval: provision/upgrade User account with temporary password & create Shelter record
     if (finalStatus === 'Approved') {
-      tempPassword = generateTemporaryPassword();
+      const passwordToUse = application.password || generateTemporaryPassword();
+      tempPassword = passwordToUse;
       const shelterEmail = application.shelterEmail.toLowerCase().trim();
       const shelterPhone = String(application.shelterPhoneNumber).trim();
 
@@ -360,20 +363,20 @@ const reviewApplication = async (req, res) => {
           fullName: application.shelterName.trim(),
           email: shelterEmail,
           phoneNumber: shelterPhone,
-          password: tempPassword,
+          password: passwordToUse,
           role: 'Shelter',
           isEmailVerified: true,
           isPhoneVerified: true,
           status: 'Active',
         });
       } else {
-        // Update existing user with Shelter role, verified status and temporary password
+        // Update existing user with Shelter role, verified status and password
         shelterUser.fullName = application.shelterName.trim();
         shelterUser.phoneNumber = shelterPhone;
         shelterUser.role = 'Shelter';
         shelterUser.isEmailVerified = true;
         shelterUser.isPhoneVerified = true;
-        shelterUser.password = tempPassword; // Pre-save hook will hash this
+        shelterUser.password = passwordToUse; // Pre-save hook will hash this
         shelterUser.status = 'Active';
         await shelterUser.save();
       }
@@ -425,12 +428,12 @@ const reviewApplication = async (req, res) => {
 
       createdShelter = existingShelter;
 
-      // Dispatch shelter approval email with temporary password & login URL
+      // Dispatch shelter approval email with password & login URL
       try {
         await sendShelterApprovalEmail(shelterEmail, {
           shelterName: application.shelterName,
           shelterNumber: createdShelter.shelterNumber,
-          tempPassword,
+          tempPassword: application.password ? 'Your chosen registration password' : tempPassword,
           loginUrl: `${process.env.CLIENT_URL || 'http://localhost:5173'}/login`,
         });
       } catch (mailErr) {
@@ -443,7 +446,11 @@ const reviewApplication = async (req, res) => {
         createNotificationHelper({
           userId: applicantTargetId,
           title: 'Shelter Application Approved! 🎉',
-          message: `Congratulations! Your application for "${application.shelterName}" has been approved! Shelter account (${createdShelter.shelterNumber}) is created. Temporary password has been emailed to ${shelterEmail}.`,
+          message: `Congratulations! Your application for "${application.shelterName}" has been approved! Shelter account (${createdShelter.shelterNumber}) is created.${
+            application.password
+              ? ' You can log in using your registration password.'
+              : ` Temporary password has been emailed to ${shelterEmail}.`
+          }`,
           type: 'ShelterApplication',
           priority: 'High',
           metadata: {
