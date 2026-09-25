@@ -654,18 +654,65 @@ export const reminderModalSchema = z.object({
     }),
 });
 
-// Audit / Valuation Visit Report Schema
-export const auditReportSchema = z.object({
-  reportText: z
-    .string()
-    .min(1, { message: 'Inspection / audit report text is required' })
-    .refine((val) => val.trim().length >= 15, {
-      message: 'Audit report must contain at least 15 characters of detailed observations',
-    }),
-  decision: z.enum(['Approved', 'Rejected'], {
-    errorMap: () => ({ message: 'Please select an audit decision (Approved or Rejected)' }),
-  }),
-});
+// Audit / Valuation Visit / Interview Evaluation Report Schema
+export const auditReportSchema = z
+  .object({
+    report: z.string().optional(),
+    reportText: z.string().optional(),
+    status: z.enum(['Approved', 'Rejected']).optional(),
+    decision: z.enum(['Approved', 'Rejected']).optional(),
+    rejectionReason: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const hasReportKey = data.report !== undefined;
+    const reportVal = (hasReportKey ? data.report : data.reportText) || '';
+    const reportPath = hasReportKey ? 'report' : 'reportText';
+
+    if (!reportVal.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Clinical evaluation findings / inspection report is required',
+        path: [reportPath],
+      });
+    } else if (reportVal.trim().length < 15) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Report must contain at least 15 characters of detailed observations',
+        path: [reportPath],
+      });
+    }
+
+    const hasStatusKey = data.status !== undefined;
+    const decVal = hasStatusKey ? data.status : data.decision;
+    const decPath = hasStatusKey ? 'status' : 'decision';
+
+    if (!decVal || !['Approved', 'Rejected'].includes(decVal)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Please select an evaluation decision (Approved or Rejected)',
+        path: [decPath],
+      });
+    }
+
+    if (decVal === 'Rejected') {
+      const reason = (data.rejectionReason || '').trim();
+      if (data.rejectionReason !== undefined || decVal === 'Rejected') {
+        if (!reason) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Please provide a reason for rejection',
+            path: ['rejectionReason'],
+          });
+        } else if (reason.length < 10) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Rejection reason must be at least 10 characters',
+            path: ['rejectionReason'],
+          });
+        }
+      }
+    }
+  });
 
 // Category Schema
 export const animalCategorySchema = z.object({
@@ -774,9 +821,40 @@ export const validateField = (schema, fieldName, value, allData = {}) => {
     qualification: z.string().min(1, { message: 'Qualification is required' }),
     position: z.string().min(1, { message: 'Position is required' }),
     shelterId: z.string().min(1, { message: 'Please select an assigned shelter' }),
+    report: z
+      .string()
+      .min(1, { message: 'Clinical evaluation findings and remarks are required' })
+      .refine((v) => v.trim().length >= 15, {
+        message: 'Report remarks must contain at least 15 characters of detailed observations',
+      }),
+    reportText: z
+      .string()
+      .min(1, { message: 'Inspection / audit report text is required' })
+      .refine((v) => v.trim().length >= 15, {
+        message: 'Report must contain at least 15 characters of detailed observations',
+      }),
+    interviewReport: z
+      .string()
+      .min(1, { message: 'Clinical evaluation findings and remarks are required' })
+      .refine((v) => v.trim().length >= 15, {
+        message: 'Evaluation remarks must contain at least 15 characters of detailed observations',
+      }),
+    rejectionReason: z
+      .string()
+      .min(1, { message: 'Reason for rejection is required' })
+      .refine((v) => v.trim().length >= 10, {
+        message: 'Rejection reason must be at least 10 characters',
+      }),
   };
 
-  const targetSchema = fieldSchemas[fieldName] || schema;
+  let targetSchema = fieldSchemas[fieldName];
+  if (!targetSchema && schema && typeof schema === 'object') {
+    if (schema.shape && schema.shape[fieldName]) {
+      targetSchema = schema.shape[fieldName];
+    } else if (typeof schema.safeParse === 'function' && !(schema instanceof z.ZodObject)) {
+      targetSchema = schema;
+    }
+  }
   if (!targetSchema) return '';
 
   const result = targetSchema.safeParse(value);
