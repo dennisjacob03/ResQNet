@@ -12,6 +12,7 @@ const {
   resetPassword,
   updateProfile,
   changePassword,
+  checkEmailExists,
 } = require('./authController');
 const { protect } = require('../../middleware/authMiddleware');
 
@@ -35,6 +36,7 @@ const uploadProfilePic = multer({
 router.post('/register', registerUser);
 router.post('/login', loginUser);
 router.post('/google', googleAuth);
+router.get('/check-email', checkEmailExists);
 router.post('/send-otp', sendOtp);
 router.post('/verify-otp', verifyOtp);
 router.post('/reset-password', resetPassword);

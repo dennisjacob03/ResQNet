@@ -1,24 +1,33 @@
-const User = require('./userModel');
-const LoginLog = require('./loginModel');
-const RescueTeam = require('../rescues/rescueTeamModel');
-const Shelter = require('../shelters/shelterModel');
-const VetStaff = require('../shelters/vetStaffModel');
-const { getAuth } = require('firebase-admin/auth');
-const { sendAdminCreatedUserEmail } = require('../../utils/emailService');
+const User = require("./userModel");
+const LoginLog = require("./loginModel");
+const RescueTeam = require("../rescues/rescueTeamModel");
+const Shelter = require("../shelters/shelterModel");
+const VetStaff = require("../shelters/vetStaffModel");
+const { getAuth } = require("firebase-admin/auth");
+const {
+  sendAdminCreatedUserEmail,
+  sendAccountApprovedEmail,
+} = require("../../utils/emailService");
 
 // @desc    Get all users with optional filtering & search
 // @route   GET /api/users
 // @access  Private (Admin only)
 exports.getAllUsers = async (req, res) => {
   try {
-    const { search, role, status, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+    const {
+      search,
+      role,
+      status,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
 
     const query = {};
 
     // Filter by deleted status (unless explicitly requested)
-    if (status === 'Deleted') {
-      query.$or = [{ status: 'Deleted' }, { isDeleted: true }];
-    } else if (status && status !== 'All') {
+    if (status === "Deleted") {
+      query.$or = [{ status: "Deleted" }, { isDeleted: true }];
+    } else if (status && status !== "All") {
       query.status = status;
       query.isDeleted = { $ne: true };
     } else {
@@ -26,13 +35,13 @@ exports.getAllUsers = async (req, res) => {
     }
 
     // Filter by role
-    if (role && role !== 'All') {
+    if (role && role !== "All") {
       query.role = role;
     }
 
     // Search by name, email, phone, city, state, district
     if (search && search.trim()) {
-      const searchRegex = new RegExp(search.trim(), 'i');
+      const searchRegex = new RegExp(search.trim(), "i");
       query.$or = [
         { fullName: searchRegex },
         { email: searchRegex },
@@ -44,11 +53,9 @@ exports.getAllUsers = async (req, res) => {
     }
 
     const sortOptions = {};
-    sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
+    sortOptions[sortBy] = sortOrder === "asc" ? 1 : -1;
 
-    const users = await User.find(query)
-      .select('-password')
-      .sort(sortOptions);
+    const users = await User.find(query).select("-password").sort(sortOptions);
 
     res.status(200).json({
       success: true,
@@ -56,10 +63,10 @@ exports.getAllUsers = async (req, res) => {
       users,
     });
   } catch (error) {
-    console.error('Error fetching users:', error.message);
+    console.error("Error fetching users:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch users',
+      message: "Failed to fetch users",
       error: error.message,
     });
   }
@@ -70,12 +77,12 @@ exports.getAllUsers = async (req, res) => {
 // @access  Private (Admin only)
 exports.getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const user = await User.findById(req.params.id).select("-password");
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
     }
 
@@ -90,10 +97,10 @@ exports.getUserById = async (req, res) => {
       recentLogins,
     });
   } catch (error) {
-    console.error('Error fetching user:', error.message);
+    console.error("Error fetching user:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch user details',
+      message: "Failed to fetch user details",
       error: error.message,
     });
   }
@@ -106,11 +113,11 @@ exports.updateUserStatus = async (req, res) => {
   try {
     const { status } = req.body;
 
-    const validStatuses = ['Active', 'Inactive', 'Suspended'];
+    const validStatuses = ["Active", "Inactive", "Suspended"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid status. Valid values: ${validStatuses.join(', ')}`,
+        message: `Invalid status. Valid values: ${validStatuses.join(", ")}`,
       });
     }
 
@@ -118,20 +125,28 @@ exports.updateUserStatus = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
     }
 
     // Prevent any admin account from being suspended
-    if (user.role === 'Admin' && status === 'Suspended') {
+    if (user.role === "Admin" && status === "Suspended") {
       return res.status(400).json({
         success: false,
-        message: 'An Admin user account cannot be suspended',
+        message: "An Admin user account cannot be suspended",
       });
     }
 
+    const previousStatus = user.status;
     user.status = status;
     await user.save();
+
+    // If user is being approved / activated from Inactive or Suspended status, dispatch approval email
+    if (status === "Active" && previousStatus !== "Active") {
+      sendAccountApprovedEmail(user).catch((err) =>
+        console.warn("Failed to send account approval email:", err.message),
+      );
+    }
 
     res.status(200).json({
       success: true,
@@ -145,10 +160,10 @@ exports.updateUserStatus = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error updating user status:', error.message);
+    console.error("Error updating user status:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to update user status',
+      message: "Failed to update user status",
       error: error.message,
     });
   }
@@ -162,16 +177,16 @@ exports.updateUserRole = async (req, res) => {
     const { role } = req.body;
 
     const validRoles = [
-      'Public User',
-      'Rescue Team',
-      'Shelter',
-      'Veterinary Staff',
-      'Admin',
+      "Public User",
+      "Rescue Team",
+      "Shelter",
+      "Veterinary Staff",
+      "Admin",
     ];
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid role. Valid values: ${validRoles.join(', ')}`,
+        message: `Invalid role. Valid values: ${validRoles.join(", ")}`,
       });
     }
 
@@ -179,15 +194,15 @@ exports.updateUserRole = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
     }
 
     // Prevent admin from changing their own role to non-admin
-    if (req.user._id.toString() === user._id.toString() && role !== 'Admin') {
+    if (req.user._id.toString() === user._id.toString() && role !== "Admin") {
       return res.status(400).json({
         success: false,
-        message: 'You cannot remove your own Admin role',
+        message: "You cannot remove your own Admin role",
       });
     }
 
@@ -206,10 +221,10 @@ exports.updateUserRole = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error updating user role:', error.message);
+    console.error("Error updating user role:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to update user role',
+      message: "Failed to update user role",
       error: error.message,
     });
   }
@@ -225,18 +240,18 @@ exports.createUser = async (req, res) => {
       email,
       phoneNumber,
       password,
-      role = 'Public User',
-      address = '',
-      city = '',
-      district = '',
-      state = 'Kerala',
-      pincode = '',
-      status = 'Active',
+      role = "Public User",
+      address = "",
+      city = "",
+      district = "",
+      state = "Kerala",
+      pincode = "",
+      status = "Active",
       isEmailVerified = true,
       isPhoneVerified = true,
       dob = null,
       // Rescue Team specific
-      teamName,
+      rescueTeamName,
       vehicleNumber,
       vehicleType,
       operatingDistrict,
@@ -271,48 +286,48 @@ exports.createUser = async (req, res) => {
 
     // Validate role (Admin cannot be provisioned here)
     const validRoles = [
-      'Public User',
-      'Rescue Team',
-      'Shelter',
-      'Veterinary Staff',
+      "Public User",
+      "Rescue Team",
+      "Shelter",
+      "Veterinary Staff",
     ];
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid role. Provisioning Admin accounts directly is not permitted. Valid options: ${validRoles.join(', ')}`,
+        message: `Invalid role. Provisioning Admin accounts directly is not permitted. Valid options: ${validRoles.join(", ")}`,
       });
     }
 
     // Resolve effective full name based on role:
-    // For Rescue Team: teamName is used as the account full name
+    // For Rescue Team: rescueTeamName is used as the account full name
     // For Shelter: shelterName is used as the account full name
-    let resolvedFullName = (fullName || '').trim();
+    let resolvedFullName = (fullName || "").trim();
 
-    if (role === 'Rescue Team') {
-      if (!teamName || !teamName.trim()) {
+    if (role === "Rescue Team") {
+      if (!rescueTeamName || !rescueTeamName.trim()) {
         return res.status(400).json({
           success: false,
-          message: 'Rescue Team Name is required',
+          message: "Rescue Team Name is required",
         });
       }
-      if (teamName.trim().length < 3) {
+      if (rescueTeamName.trim().length < 3) {
         return res.status(400).json({
           success: false,
-          message: 'Rescue Team Name must be at least 3 characters',
+          message: "Rescue Team Name must be at least 3 characters",
         });
       }
-      resolvedFullName = teamName.trim();
-    } else if (role === 'Shelter') {
+      resolvedFullName = rescueTeamName.trim();
+    } else if (role === "Shelter") {
       if (!shelterName || !shelterName.trim()) {
         return res.status(400).json({
           success: false,
-          message: 'Shelter Facility Name is required',
+          message: "Shelter Facility Name is required",
         });
       }
       if (shelterName.trim().length < 3) {
         return res.status(400).json({
           success: false,
-          message: 'Shelter Facility Name must be at least 3 characters',
+          message: "Shelter Facility Name must be at least 3 characters",
         });
       }
       resolvedFullName = shelterName.trim();
@@ -321,14 +336,18 @@ exports.createUser = async (req, res) => {
       if (!resolvedFullName) {
         return res.status(400).json({
           success: false,
-          message: 'Full Name is required',
+          message: "Full Name is required",
         });
       }
 
-      if (resolvedFullName.length < 2 || !/^[a-zA-Z\s.]+$/.test(resolvedFullName)) {
+      if (
+        resolvedFullName.length < 2 ||
+        !/^[a-zA-Z\s.]+$/.test(resolvedFullName)
+      ) {
         return res.status(400).json({
           success: false,
-          message: 'Full Name must be at least 2 characters and contain only letters, dots, and spaces',
+          message:
+            "Full Name must be at least 2 characters and contain only letters, dots, and spaces",
         });
       }
     }
@@ -336,7 +355,7 @@ exports.createUser = async (req, res) => {
     if (!email || !email.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Email address is required',
+        message: "Email address is required",
       });
     }
 
@@ -344,119 +363,130 @@ exports.createUser = async (req, res) => {
     if (!emailRegex.test(email.trim())) {
       return res.status(400).json({
         success: false,
-        message: 'Please enter a valid email address (e.g. name@example.com)',
+        message: "Please enter a valid email address (e.g. name@example.com)",
       });
     }
 
     if (!phoneNumber || !phoneNumber.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Phone number is required',
+        message: "Phone number is required",
       });
     }
 
-    const cleanPhone = phoneNumber.trim().replace(/\D/g, '').slice(-10);
+    const cleanPhone = phoneNumber.trim().replace(/\D/g, "").slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
       return res.status(400).json({
         success: false,
-        message: 'Phone number must be a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9',
+        message:
+          "Phone number must be a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9",
       });
     }
 
     if (!password) {
       return res.status(400).json({
         success: false,
-        message: 'Temporary password is required',
+        message: "Temporary password is required",
       });
     }
 
     if (password.length < 8) {
       return res.status(400).json({
         success: false,
-        message: 'Temporary password must be at least 8 characters long',
+        message: "Temporary password must be at least 8 characters long",
       });
     }
 
     // Role-specific validations
-    if (role === 'Rescue Team') {
+    if (role === "Rescue Team") {
       if (!vehicleType) {
         return res.status(400).json({
           success: false,
-          message: 'Vehicle type is required for Rescue Team',
+          message: "Vehicle type is required for Rescue Team",
         });
       }
       if (!vehicleNumber || !vehicleNumber.trim()) {
         return res.status(400).json({
           success: false,
-          message: 'Vehicle registration number is required for Rescue Team',
+          message: "Vehicle registration number is required for Rescue Team",
         });
       }
       const vNum = vehicleNumber.trim().toUpperCase();
-      if (!/^[A-Z]{2}[ -]?[0-9]{1,2}[ -]?[A-Z]{1,3}[ -]?[0-9]{4}$/i.test(vNum)) {
+      if (
+        !/^[A-Z]{2}[ -]?[0-9]{1,2}[ -]?[A-Z]{1,3}[ -]?[0-9]{4}$/i.test(vNum)
+      ) {
         return res.status(400).json({
           success: false,
-          message: 'Enter a valid Indian vehicle number (e.g. KL-07-AB-1234)',
+          message: "Enter a valid Indian vehicle number (e.g. KL-07-AB-1234)",
         });
       }
       if (!operatingDistrict || !operatingDistrict.trim()) {
         return res.status(400).json({
           success: false,
-          message: 'Operating District is required for Rescue Team',
+          message: "Operating District is required for Rescue Team",
         });
       }
-    } else if (role === 'Shelter') {
+    } else if (role === "Shelter") {
       if (!registrationType) {
         return res.status(400).json({
           success: false,
-          message: 'Registration Type is required for Shelter',
+          message: "Registration Type is required for Shelter",
         });
       }
       if (!registrationNumber || registrationNumber.trim().length < 3) {
         return res.status(400).json({
           success: false,
-          message: 'Registration Number is required for Shelter (min 3 characters)',
+          message:
+            "Registration Number is required for Shelter (min 3 characters)",
         });
       }
       const numCages = Number(totalCages);
       if (isNaN(numCages) || numCages < 1) {
         return res.status(400).json({
           success: false,
-          message: 'Total cages must be a positive number of at least 1',
+          message: "Total cages must be a positive number of at least 1",
         });
       }
-    } else if (role === 'Veterinary Staff') {
+    } else if (role === "Veterinary Staff") {
       if (!position) {
         return res.status(400).json({
           success: false,
-          message: 'Position is required for Veterinary Staff (e.g. Veterinary Doctor or Veterinary Nurse)',
+          message:
+            "Position is required for Veterinary Staff (e.g. Veterinary Doctor or Veterinary Nurse)",
         });
       }
-      if (!councilRegistrationNumber || councilRegistrationNumber.trim().length < 4) {
+      if (
+        !councilRegistrationNumber ||
+        councilRegistrationNumber.trim().length < 4
+      ) {
         return res.status(400).json({
           success: false,
-          message: 'Council Registration Number is mandatory for Veterinary Staff (min 4 characters)',
+          message:
+            "Council Registration Number is mandatory for Veterinary Staff (min 4 characters)",
         });
       }
       if (!qualification || !qualification.trim()) {
         return res.status(400).json({
           success: false,
-          message: 'Qualification is required for Veterinary Staff',
+          message: "Qualification is required for Veterinary Staff",
         });
       }
       if (!shelterId) {
         return res.status(400).json({
           success: false,
-          message: 'Please assign the Veterinary Staff to a Shelter',
+          message: "Please assign the Veterinary Staff to a Shelter",
         });
       }
     }
 
     // Check if email is already registered
-    const userExists = await User.findOne({ email: email.toLowerCase().trim() });
+    const userExists = await User.findOne({
+      email: email.toLowerCase().trim(),
+    });
     if (userExists) {
       return res.status(400).json({
         success: false,
-        message: 'An account with this email address already exists',
+        message: "An account with this email address already exists",
       });
     }
 
@@ -470,7 +500,7 @@ exports.createUser = async (req, res) => {
       });
       firebaseUid = fbUser.uid;
     } catch (fbErr) {
-      console.warn('Firebase Auth creation skipped/failed:', fbErr.message);
+      console.warn("Firebase Auth creation skipped/failed:", fbErr.message);
     }
 
     // Create User record in MongoDB
@@ -482,8 +512,8 @@ exports.createUser = async (req, res) => {
       role,
       address: address.trim(),
       city: city.trim(),
-      district: district.trim() || operatingDistrict?.trim() || '',
-      state: state.trim() || 'Kerala',
+      district: district.trim() || operatingDistrict?.trim() || "",
+      state: state.trim() || "Kerala",
       pincode: pincode.trim(),
       status,
       isEmailVerified: Boolean(isEmailVerified),
@@ -495,14 +525,22 @@ exports.createUser = async (req, res) => {
     let roleRecord = null;
 
     // Create corresponding entity based on role
-    if (role === 'Rescue Team') {
+    if (role === "Rescue Team") {
       roleRecord = await RescueTeam.create({
         userId: newUser._id,
-        teamName: resolvedFullName,
+        teamLeadId: newUser._id,
+        rescueTeamApplicationId: `ADMIN-${newUser._id}`,
+        rescueTeamEmail: newUser.email,
+        rescueTeamName: resolvedFullName,
         vehicleNumber: vehicleNumber.trim().toUpperCase(),
         vehicleType,
         operatingDistrict: operatingDistrict.trim(),
         contactPhone: cleanPhone,
+        address: address.trim(),
+        pincode: pincode.trim(),
+        state: state.trim() || "Kerala",
+        district: district.trim() || operatingDistrict?.trim() || "",
+        city: city.trim(),
         latitude: latitude ? Number(latitude) : 9.9312,
         longitude: longitude ? Number(longitude) : 76.2673,
         currentLocation: {
@@ -510,36 +548,38 @@ exports.createUser = async (req, res) => {
           longitude: longitude ? Number(longitude) : 76.2673,
           updatedAt: new Date(),
         },
-        availability: availability || 'Available',
-        status: status === 'Active' ? 'Active' : 'Inactive',
+        availability: availability || "Available",
+        status: status === "Active" ? "Active" : "Inactive",
       });
-    } else if (role === 'Shelter') {
+    } else if (role === "Shelter") {
       const shelterContactNum = shelterPhoneNumber
-        ? Number(String(shelterPhoneNumber).replace(/\D/g, '').slice(-10))
+        ? Number(String(shelterPhoneNumber).replace(/\D/g, "").slice(-10))
         : Number(cleanPhone);
 
       roleRecord = await Shelter.create({
         userId: newUser._id,
         shelterName: resolvedFullName,
-        registrationType: registrationType || 'STATE_TRUST_SOCIETY',
+        registrationType: registrationType || "STATE_TRUST_SOCIETY",
         registrationNumber: registrationNumber.trim().toUpperCase(),
         shelterEmail: (shelterEmail || email).toLowerCase().trim(),
         shelterPhoneNumber: shelterContactNum || Number(cleanPhone),
         latitude: latitude ? Number(latitude) : 9.9312,
         longitude: longitude ? Number(longitude) : 76.2673,
-        totalStaffs: totalStaffs !== undefined ? Math.max(0, Number(totalStaffs)) : 1,
+        totalStaffs:
+          totalStaffs !== undefined ? Math.max(0, Number(totalStaffs)) : 1,
         totalCages: Math.max(1, Number(totalCages) || 10),
-        occupiedCages: occupiedCages !== undefined ? Math.max(0, Number(occupiedCages)) : 0,
-        shelterStatus: shelterStatus || 'OPEN',
-        status: status === 'Active' ? 'Active' : 'Inactive',
+        occupiedCages:
+          occupiedCages !== undefined ? Math.max(0, Number(occupiedCages)) : 0,
+        shelterStatus: shelterStatus || "OPEN",
+        status: status === "Active" ? "Active" : "Inactive",
       });
-    } else if (role === 'Veterinary Staff') {
+    } else if (role === "Veterinary Staff") {
       let targetShelter = null;
       if (shelterId) {
         targetShelter = await Shelter.findById(shelterId);
       }
       if (!targetShelter) {
-        targetShelter = await Shelter.findOne({ status: 'Active' });
+        targetShelter = await Shelter.findOne({ status: "Active" });
       }
 
       if (targetShelter) {
@@ -550,13 +590,14 @@ exports.createUser = async (req, res) => {
           email: email.toLowerCase().trim(),
           phone: cleanPhone,
           councilRegistrationNumber: councilRegistrationNumber.trim(),
-          qualification: qualification?.trim() || 'BVSc & AH',
-          specialization: specialization?.trim() || 'General Practice',
-          position: position || 'Veterinary Doctor',
-          experience: experience !== undefined ? Math.max(0, Number(experience)) : 0,
+          qualification: qualification?.trim() || "BVSc & AH",
+          specialization: specialization?.trim() || "General Practice",
+          position: position || "Veterinary Doctor",
+          experience:
+            experience !== undefined ? Math.max(0, Number(experience)) : 0,
           joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
-          availability: 'Available',
-          status: status === 'Active' ? 'Active' : 'Inactive',
+          availability: "Available",
+          status: status === "Active" ? "Active" : "Inactive",
         });
       }
     }
@@ -573,7 +614,10 @@ exports.createUser = async (req, res) => {
       emailSent = emailRes?.success || false;
       console.log(`📧 Credentials email sent to ${newUser.email}:`, emailSent);
     } catch (emailErr) {
-      console.warn('Failed to send admin created user email:', emailErr.message);
+      console.warn(
+        "Failed to send admin created user email:",
+        emailErr.message,
+      );
     }
 
     const userObj = newUser.toObject();
@@ -587,10 +631,10 @@ exports.createUser = async (req, res) => {
       emailSent,
     });
   } catch (error) {
-    console.error('Error creating user:', error.message);
+    console.error("Error creating user:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to create user',
+      message: "Failed to create user",
       error: error.message,
     });
   }
@@ -606,7 +650,7 @@ exports.deleteUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: "User not found",
       });
     }
 
@@ -614,13 +658,13 @@ exports.deleteUser = async (req, res) => {
     if (req.user._id.toString() === user._id.toString()) {
       return res.status(400).json({
         success: false,
-        message: 'You cannot delete your own admin account',
+        message: "You cannot delete your own admin account",
       });
     }
 
     // Perform Soft Delete (preserve record and immutable login/audit logs)
     user.isDeleted = true;
-    user.status = 'Deleted';
+    user.status = "Deleted";
     user.deletedAt = new Date();
     await user.save();
 
@@ -629,10 +673,10 @@ exports.deleteUser = async (req, res) => {
       message: `User ${user.fullName} has been removed (soft deleted) successfully`,
     });
   } catch (error) {
-    console.error('Error deleting user:', error.message);
+    console.error("Error deleting user:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to delete user',
+      message: "Failed to delete user",
       error: error.message,
     });
   }
@@ -644,29 +688,46 @@ exports.deleteUser = async (req, res) => {
 exports.getUserStats = async (req, res) => {
   try {
     const totalUsers = await User.countDocuments({ isDeleted: { $ne: true } });
-    const activeUsers = await User.countDocuments({ status: 'Active', isDeleted: { $ne: true } });
-    const suspendedUsers = await User.countDocuments({ status: 'Suspended', isDeleted: { $ne: true } });
-    const inactiveUsers = await User.countDocuments({ status: 'Inactive', isDeleted: { $ne: true } });
-    const deletedUsers = await User.countDocuments({ $or: [{ status: 'Deleted' }, { isDeleted: true }] });
-    const verifiedEmailUsers = await User.countDocuments({ isEmailVerified: true, isDeleted: { $ne: true } });
-    const verifiedPhoneUsers = await User.countDocuments({ isPhoneVerified: true, isDeleted: { $ne: true } });
+    const activeUsers = await User.countDocuments({
+      status: "Active",
+      isDeleted: { $ne: true },
+    });
+    const suspendedUsers = await User.countDocuments({
+      status: "Suspended",
+      isDeleted: { $ne: true },
+    });
+    const inactiveUsers = await User.countDocuments({
+      status: "Inactive",
+      isDeleted: { $ne: true },
+    });
+    const deletedUsers = await User.countDocuments({
+      $or: [{ status: "Deleted" }, { isDeleted: true }],
+    });
+    const verifiedEmailUsers = await User.countDocuments({
+      isEmailVerified: true,
+      isDeleted: { $ne: true },
+    });
+    const verifiedPhoneUsers = await User.countDocuments({
+      isPhoneVerified: true,
+      isDeleted: { $ne: true },
+    });
 
     // Group by Role
     const roleAggregation = await User.aggregate([
       {
         $group: {
-          _id: '$role',
+          _id: "$role",
           count: { $sum: 1 },
         },
       },
     ]);
 
     const roleBreakdown = {
-      'Public User': 0,
-      'Rescue Team': 0,
-      'Shelter': 0,
-      'Veterinary Staff': 0,
-      'Admin': 0,
+      "Public User": 0,
+      "Rescue Team": 0,
+      Shelter: 0,
+      "Veterinary Staff": 0,
+      Admin: 0,
     };
 
     roleAggregation.forEach((item) => {
@@ -698,10 +759,10 @@ exports.getUserStats = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error fetching user stats:', error.message);
+    console.error("Error fetching user stats:", error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch user statistics',
+      message: "Failed to fetch user statistics",
       error: error.message,
     });
   }

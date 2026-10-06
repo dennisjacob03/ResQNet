@@ -6,55 +6,10 @@ const volunteerApplicationSchema = new mongoose.Schema(
       type: String,
       unique: true,
     },
-    volunteerId: {
-      type: String,
-      default: '',
-      trim: true,
-    },
     applicantId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'Applicant ID is required'],
-    },
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-    },
-    fullName: {
-      type: String,
-      required: [true, 'Full name is required'],
-      trim: true,
-    },
-    email: {
-      type: String,
-      required: [true, 'Email address is required'],
-      trim: true,
-      lowercase: true,
-    },
-    phone: {
-      type: String,
-      required: [true, 'Phone number is required'],
-      trim: true,
-    },
-    district: {
-      type: String,
-      required: [true, 'District is required'],
-      trim: true,
-    },
-    city: {
-      type: String,
-      default: '',
-      trim: true,
-    },
-    state: {
-      type: String,
-      default: 'Kerala',
-      trim: true,
-    },
-    address: {
-      type: String,
-      default: '',
-      trim: true,
     },
     emergencyContact: {
       name: { type: String, default: '', trim: true },
@@ -63,17 +18,17 @@ const volunteerApplicationSchema = new mongoose.Schema(
     },
     availability: {
       type: [String],
-      default: ['Weekends'],
+      default: [],
     },
     interests: {
       type: [String],
-      default: ['Animal Feeding & Care'],
+      default: [],
     },
     skills: {
       type: [String],
       default: [],
     },
-    experienceNotes: {
+    experienceNotes: { 
       type: String,
       default: '',
       trim: true,

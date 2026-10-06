@@ -79,6 +79,12 @@ const ShelterDetailsModal = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <span className="text-slate-400 font-bold block uppercase text-[10px]">
+                Shelter Manager
+              </span>
+              <p className="font-extrabold text-slate-800 mt-0.5">{shelter.managerId?.fullName || shelter.userId?.fullName || shelter.managerName || 'Not specified'}</p>
+            </div>
+            <div>
+              <span className="text-slate-400 font-bold block uppercase text-[10px]">
                 Contact Email
               </span>
               <p className="font-extrabold text-slate-800 mt-0.5">{shelter.shelterEmail}</p>

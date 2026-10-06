@@ -15,6 +15,11 @@ const shelterSchema = new mongoose.Schema(
       ref: 'User',
       default: null,
     },
+    managerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     registrationType: {
       type: String,
       enum: [
@@ -46,6 +51,31 @@ const shelterSchema = new mongoose.Schema(
     shelterPhoneNumber: {
       type: Number,
       required: [true, 'Shelter contact number is required'],
+    },
+    address: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    city: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    district: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    state: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    pincode: {
+      type: String,
+      default: '',
+      trim: true,
     },
     latitude: {
       type: Number,

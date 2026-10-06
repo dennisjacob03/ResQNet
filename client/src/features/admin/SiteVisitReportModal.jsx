@@ -37,6 +37,7 @@ const SiteVisitReportModal = ({
     const validationData = {
       reportText: (siteVisitReportText || '').trim(),
       decision: reportDecision,
+      rejectionReason: reportDecision === 'Rejected' ? (siteVisitReportText || '').trim() : undefined,
     };
 
     const parseResult = auditReportSchema.safeParse(validationData);
@@ -119,7 +120,10 @@ const SiteVisitReportModal = ({
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-700">
-              Physical Site Visit Inspection & Valuation Report <span className="text-rose-500">*</span>
+              {reportDecision === 'Rejected'
+                ? 'Physical Site Visit Inspection Report & Rejection Reason'
+                : 'Physical Site Visit Inspection & Valuation Report'}{' '}
+              <span className="text-rose-500">*</span>
             </label>
             <textarea
               value={siteVisitReportText}
@@ -131,7 +135,11 @@ const SiteVisitReportModal = ({
               }}
               onBlur={(e) => handleBlurField('reportText', e.target.value)}
               rows="4"
-              placeholder="Document physical observations regarding facility cages, ventilation, hygiene, water access, staff readiness, and regulatory compliance..."
+              placeholder={
+                reportDecision === 'Rejected'
+                  ? 'Document inspection observations, compliance failures, and detailed reason for declining the registration...'
+                  : 'Document physical observations regarding facility cages, ventilation, hygiene, water access, staff readiness, and regulatory compliance...'
+              }
               className={`w-full px-4 py-2.5 bg-[#F8FAF9] border rounded-xl text-xs font-semibold focus:outline-none resize-none transition ${
                 touched.reportText && fieldErrors.reportText
                   ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'

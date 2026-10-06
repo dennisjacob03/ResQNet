@@ -18,7 +18,7 @@ const Sidebar = ({
 }) => {
   const navItems = [
     { name: 'Rescue Dashboard', icon: LayoutDashboard },
-    { name: 'Assigned Requests', icon: Navigation },
+    { name: 'Rescue Operations', icon: Navigation },
     { name: 'Manage Volunteers', icon: HeartHandshake },
   ];
 

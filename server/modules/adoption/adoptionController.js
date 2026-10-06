@@ -3,7 +3,11 @@ const AdoptionApplication = require('./adoptionApplicationModel');
 const Animal = require('../animals/animalModel');
 const User = require('../users/userModel');
 const Notification = require('../notifications/notificationModel');
-const { sendAdoptionStatusEmail } = require('../../utils/emailService');
+const {
+  sendAdoptionStatusEmail,
+  sendAdoptionApplicationSubmittedEmail,
+  sendAdoptionVisitScheduledEmail,
+} = require('../../utils/emailService');
 const {
   validateAdoptionApplication,
   validateUpdateStatus,
@@ -123,6 +127,20 @@ const createAdoptionApplication = async (req, res) => {
       });
     } catch (notifErr) {
       console.warn('Failed to dispatch in-app notification:', notifErr.message);
+    }
+
+    // 7. Send adoption application submission email
+    const applicantEmail = populated?.applicant_id?.email || req.user?.email;
+    if (applicantEmail) {
+      sendAdoptionApplicationSubmittedEmail(applicantEmail, {
+        applicantName: populated?.applicant_id?.fullName || req.user?.fullName,
+        petName: pet.name || 'Pet',
+        species: pet.species || 'Animal',
+        breed: pet.breed || '',
+        shelterName: pet.shelterName || 'ResQNet Shelter',
+        adoptionId: savedApplication.adoptionId,
+        submittedAt: savedApplication.submitted_at,
+      }).catch((mailErr) => console.warn('Failed to send adoption submission email:', mailErr.message));
     }
 
     return res.status(201).json({
@@ -548,6 +566,19 @@ const scheduleAppointment = async (req, res) => {
       });
     } catch (notifErr) {
       console.warn('Failed to send appointment in-app notification:', notifErr.message);
+    }
+
+    // Send email notification to applicant
+    if (application.applicant_id?.email) {
+      sendAdoptionVisitScheduledEmail(application.applicant_id.email, {
+        applicantName: application.applicant_id.fullName || 'Applicant',
+        petName: application.pet_id?.name || 'Pet',
+        appointmentDate: date,
+        appointmentTime: time,
+        location: application.appointment.location,
+        notes: notes?.trim() || '',
+        adoptionId: application.adoptionId,
+      }).catch((mailErr) => console.warn('Failed to send adoption visit email:', mailErr.message));
     }
 
     return res.status(200).json({

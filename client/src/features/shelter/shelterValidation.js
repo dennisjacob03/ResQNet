@@ -86,6 +86,35 @@ export const clientShelterZodSchema = z
         message: 'Contact number must be a valid 10-digit Indian phone number (starting with 6, 7, 8, or 9)',
       }),
 
+    address: z
+      .string()
+      .trim()
+      .min(1, 'Shelter street address is required')
+      .min(3, 'Address must be at least 3 characters long'),
+
+    pincode: z
+      .string()
+      .trim()
+      .min(1, 'PIN code is required')
+      .refine((val) => /^\d{6}$/.test(val.replace(/\D/g, '')), {
+        message: 'PIN code must be a valid 6-digit number',
+      }),
+
+    state: z
+      .string()
+      .trim()
+      .min(1, 'State is required'),
+
+    district: z
+      .string()
+      .trim()
+      .min(1, 'District is required'),
+
+    city: z
+      .string()
+      .trim()
+      .min(1, 'City / Locality is required'),
+
     latitude: z
       .union([z.string(), z.number()])
       .transform((val) => (typeof val === 'string' ? parseFloat(val) : val))

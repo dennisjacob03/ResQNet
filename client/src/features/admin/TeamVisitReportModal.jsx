@@ -99,7 +99,7 @@ const TeamVisitReportModal = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400 font-semibold mt-0.5">
-                {application.teamName} ({application.rescueTeamApplicationId || application._id2 || 'RTA-0001'})
+                {application.rescueTeamName} ({application.rescueTeamApplicationId || application._id2 || 'RTA-0001'})
               </p>
             </div>
           </div>

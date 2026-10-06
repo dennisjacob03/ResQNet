@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   X,
   ArrowRight,
@@ -6,8 +6,6 @@ import {
   CheckCircle2,
   Building2,
   AlertCircle,
-  Clock,
-  ShieldCheck,
 } from 'lucide-react';
 import { updateRescueStage } from '../../services/rescueRequestService';
 
@@ -55,6 +53,7 @@ const UpdateRequestModal = ({
     setError('');
     try {
       const res = await updateRescueStage(requestId, {
+        stage: stageObj.key,
         rescueStage: stageObj.key,
         note: note || `Operation updated to ${stageObj.label}`,
       });

@@ -65,7 +65,7 @@ const ManageApplications = ({
     ...rescueTeamApplications.map((a) => ({
       ...a,
       _appType: 'Rescue',
-      _name: a.teamName,
+      _name: a.rescueTeamName,
       _contact: a.applicantId?.email || a.userId?.email || a.contactEmail || a.email,
       _subLabel: `${a.operatingDistrict || 'Kerala'} • ${a.vehicleType || 'Vehicle'} (${a.vehicleNumber || 'N/A'})`,
       _id2: a.rescueTeamApplicationId || a._id || a.id,

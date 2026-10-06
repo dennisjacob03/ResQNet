@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   TrendingUp,
   Users,
@@ -9,13 +9,14 @@ import {
   Truck,
   HeartHandshake,
   MapPin,
+  Radio,
   Cpu,
   Tv,
   ChevronLeft,
   ChevronRight,
   LogOut,
   X,
-} from 'lucide-react';
+} from "lucide-react";
 
 const Sidebar = ({
   sidebarOpen,
@@ -31,42 +32,43 @@ const Sidebar = ({
   loadShelterApplications,
 }) => {
   const navItems = [
-    { name: 'Admin Dashboard', icon: TrendingUp },
-    { name: 'Manage Users', icon: Users },
-    { name: 'Manage Shelters', icon: Building2 },
-    { name: 'Manage Animals', icon: Dog },
-    { name: 'Manage Applications', icon: ClipboardList },
-    { name: 'Manage Vet', icon: Stethoscope },
-    { name: 'Manage Rescue Teams', icon: Truck },
-    { name: 'Manage Volunteers', icon: HeartHandshake },
-    { name: 'Rescue & Shelter Map', icon: MapPin },
-    { name: 'AI Module', icon: Cpu },
-    { name: 'Smart Collar', icon: Tv },
+    { name: "Admin Dashboard", icon: TrendingUp },
+    { name: "Manage Users", icon: Users },
+    { name: "Manage Shelters", icon: Building2 },
+    { name: "Manage Animals", icon: Dog },
+    { name: "Manage Applications", icon: ClipboardList },
+    { name: "Manage Vet", icon: Stethoscope },
+    { name: "Manage Rescue Teams", icon: Truck },
+    { name: "Rescue Operations", icon: Radio },
+    { name: "Manage Volunteers", icon: HeartHandshake },
+    { name: "Rescue & Shelter Map", icon: MapPin },
+    { name: "AI Module", icon: Cpu },
+    { name: "Smart Collar", icon: Tv },
   ];
 
   const handleNavClick = (item) => {
     setActiveTab(item.name);
-    if (item.name === 'Admin Dashboard') {
-      setSubTab('Overview');
+    if (item.name === "Admin Dashboard") {
+      setSubTab("Overview");
     } else {
       setSubTab(item.name);
     }
 
     if (
-      item.name === 'Manage Users' ||
-      item.name === 'Manage Vet' ||
-      item.name === 'Manage Rescue Teams' ||
-      item.name === 'Manage Volunteers'
+      item.name === "Manage Users" ||
+      item.name === "Manage Vet" ||
+      item.name === "Manage Rescue Teams" ||
+      item.name === "Manage Volunteers"
     ) {
       loadUsers?.();
-    } else if (item.name === 'Manage Shelters') {
+    } else if (item.name === "Manage Shelters") {
       loadShelters?.();
-    } else if (item.name === 'Manage Animals') {
+    } else if (item.name === "Manage Animals") {
       loadAnimals?.();
       loadCategories?.();
-    } else if (item.name === 'Manage Applications') {
+    } else if (item.name === "Manage Applications") {
       loadShelterApplications?.();
-    } else if (item.name === 'Rescue & Shelter Map') {
+    } else if (item.name === "Rescue & Shelter Map") {
       loadShelters?.();
       loadUsers?.();
     }
@@ -94,8 +96,8 @@ const Sidebar = ({
           bg-white border-r border-slate-100 flex flex-col justify-between h-full overflow-y-auto shrink-0 transition-all duration-300 ease-in-out
           ${
             sidebarOpen
-              ? 'translate-x-0 w-72 max-w-[85vw] md:w-64 md:translate-x-0 shadow-2xl md:shadow-none'
-              : '-translate-x-full md:translate-x-0 md:w-20'
+              ? "translate-x-0 w-72 max-w-[85vw] md:w-64 md:translate-x-0 shadow-2xl md:shadow-none"
+              : "-translate-x-full md:translate-x-0 md:w-20"
           }
         `}
       >
@@ -103,7 +105,11 @@ const Sidebar = ({
           {/* Mobile Drawer Header with Close Button */}
           <div className="md:hidden px-4 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
             <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="ResQNet Logo" className="h-7 w-auto object-contain" />
+              <img
+                src="/logo.png"
+                alt="ResQNet Logo"
+                className="h-7 w-auto object-contain"
+              />
               <span className="text-[11px] font-black text-[#237737] uppercase tracking-wider">
                 Admin Console
               </span>
@@ -117,7 +123,7 @@ const Sidebar = ({
             </button>
           </div>
 
-          <nav className={`${sidebarOpen ? 'p-4' : 'p-3'} space-y-1.5`}>
+          <nav className={`${sidebarOpen ? "p-4" : "p-3"} space-y-1.5`}>
             {navItems.map((item) => {
               const IconComponent = item.icon;
               const isActive = activeTab === item.name;
@@ -127,18 +133,24 @@ const Sidebar = ({
                   onClick={() => handleNavClick(item)}
                   title={!sidebarOpen ? item.name : undefined}
                   className={`w-full flex items-center ${
-                    sidebarOpen ? 'justify-between px-4' : 'justify-center px-0'
+                    sidebarOpen ? "justify-between px-4" : "justify-center px-0"
                   } py-3 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer relative group ${
                     isActive
-                      ? 'bg-[#237737] text-white shadow-md shadow-[#237737]/10'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                      ? "bg-[#237737] text-white shadow-md shadow-[#237737]/10"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
                   }`}
                 >
-                  <div className={`flex items-center ${sidebarOpen ? 'gap-3 min-w-0' : 'justify-center'}`}>
+                  <div
+                    className={`flex items-center ${sidebarOpen ? "gap-3 min-w-0" : "justify-center"}`}
+                  >
                     <IconComponent
-                      className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`}
+                      className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-white" : "text-slate-500"}`}
                     />
-                    {sidebarOpen && <span className="truncate whitespace-nowrap">{item.name}</span>}
+                    {sidebarOpen && (
+                      <span className="truncate whitespace-nowrap">
+                        {item.name}
+                      </span>
+                    )}
                   </div>
                   {sidebarOpen && item.badge && !isActive && (
                     <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
@@ -155,13 +167,15 @@ const Sidebar = ({
         </div>
 
         {/* Sidebar Footer */}
-        <div className={`${sidebarOpen ? 'p-4' : 'p-3'} border-t border-slate-100 space-y-1`}>
+        <div
+          className={`${sidebarOpen ? "p-4" : "p-3"} border-t border-slate-100 space-y-1`}
+        >
           <button
             onClick={toggleSidebar}
             className={`hidden md:flex w-full items-center ${
-              sidebarOpen ? 'gap-3 px-4' : 'justify-center px-0'
+              sidebarOpen ? "gap-3 px-4" : "justify-center px-0"
             } py-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl text-xs font-semibold transition cursor-pointer`}
-            title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
           >
             {sidebarOpen ? (
               <>
@@ -175,9 +189,9 @@ const Sidebar = ({
           <button
             onClick={handleLogout}
             className={`w-full flex items-center ${
-              sidebarOpen ? 'gap-3 px-4' : 'justify-center px-0'
+              sidebarOpen ? "gap-3 px-4" : "justify-center px-0"
             } py-3 text-slate-600 hover:text-rose-600 hover:bg-rose-50/50 rounded-xl text-sm font-semibold transition cursor-pointer`}
-            title={!sidebarOpen ? 'Log Out' : undefined}
+            title={!sidebarOpen ? "Log Out" : undefined}
           >
             <LogOut className="w-5 h-5 flex-shrink-0 text-slate-500 hover:text-rose-500" />
             {sidebarOpen && <span className="whitespace-nowrap">Sign Out</span>}

@@ -102,7 +102,7 @@ const rescueRequestSchema = new mongoose.Schema(
       {
         teamId: { type: String },
         teamObjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'RescueTeam' },
-        teamName: { type: String, default: '' },
+        rescueTeamName: { type: String, default: '' },
         rescueTeamNumber: { type: String, default: '' },
         vehicleNumber: { type: String, default: '' },
         vehicleType: { type: String, default: '' },
@@ -179,7 +179,7 @@ const rescueRequestSchema = new mongoose.Schema(
     // Timeline of transit & operations
     trackingTimeline: [
       {
-        stage: { type: String, required: true },
+        stage: { type: String, default: 'En Route', required: true },
         timestamp: { type: Date, default: Date.now },
         note: { type: String, default: '' },
         location: {

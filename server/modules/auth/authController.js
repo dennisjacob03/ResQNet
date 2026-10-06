@@ -1,20 +1,27 @@
-const User = require('../users/userModel');
-const LoginLog = require('../users/loginModel');
-const admin = require('../../config/firebase');
-const { getAuth } = require('firebase-admin/auth');
-const generateToken = require('../../utils/generateToken');
-const { sendPasswordResetEmail, sendVerificationEmail, sendWelcomeEmail } = require('../../utils/emailService');
-const { createNotificationHelper } = require('../notifications/notificationController');
+const User = require("../users/userModel");
+const Shelter = require("../shelters/shelterModel");
+const LoginLog = require("../users/loginModel");
+const admin = require("../../config/firebase");
+const { getAuth } = require("firebase-admin/auth");
+const generateToken = require("../../utils/generateToken");
+const {
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+  sendWelcomeEmail,
+} = require("../../utils/emailService");
+const {
+  createNotificationHelper,
+} = require("../notifications/notificationController");
 
 // Helper to log user session
 const logUserSession = async (req, userId) => {
   try {
     const ipAddress =
-      req.headers['x-forwarded-for'] ||
+      req.headers["x-forwarded-for"] ||
       req.socket?.remoteAddress ||
       req.ip ||
-      '127.0.0.1';
-    const deviceInfo = req.headers['user-agent'] || 'Unknown Device';
+      "127.0.0.1";
+    const deviceInfo = req.headers["user-agent"] || "Unknown Device";
 
     await LoginLog.create({
       userId,
@@ -22,7 +29,7 @@ const logUserSession = async (req, userId) => {
       deviceInfo,
     });
   } catch (error) {
-    console.error('Failed to log login session:', error.message);
+    console.error("Failed to log login session:", error.message);
   }
 };
 
@@ -36,12 +43,12 @@ const registerUser = async (req, res) => {
       email,
       phoneNumber,
       password,
-      role = 'Public User',
-      address = '',
-      city = '',
-      district = '',
-      state = '',
-      pincode = '',
+      role = "Public User",
+      address = "",
+      city = "",
+      district = "",
+      state = "",
+      pincode = "",
       dob,
       otp,
     } = req.body;
@@ -50,28 +57,29 @@ const registerUser = async (req, res) => {
     if (!fullName || !email || !phoneNumber || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields: fullName, email, phoneNumber, and password',
+        message:
+          "Please provide all required fields: fullName, email, phoneNumber, and password",
       });
     }
 
     if (password.length < 6) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters long',
+        message: "Password must be at least 6 characters long",
       });
     }
 
     const validRoles = [
-      'Public User',
-      'Rescue Team',
-      'Shelter',
-      'Veterinary Staff',
-      'Admin',
+      "Public User",
+      "Rescue Team",
+      "Shelter",
+      "Veterinary Staff",
+      "Admin",
     ];
     if (!validRoles.includes(role)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid role specified. Valid options are: ${validRoles.join(', ')}`,
+        message: `Invalid role specified. Valid options are: ${validRoles.join(", ")}`,
       });
     }
 
@@ -80,7 +88,7 @@ const registerUser = async (req, res) => {
     if (userExists) {
       return res.status(400).json({
         success: false,
-        message: 'An account with this email address already exists',
+        message: "An account with this email address already exists",
       });
     }
 
@@ -88,14 +96,14 @@ const registerUser = async (req, res) => {
     if (!req.body.isPhoneVerified) {
       return res.status(400).json({
         success: false,
-        message: 'Phone number verification is required before registration',
+        message: "Phone number verification is required before registration",
       });
     }
 
     if (!otp) {
       return res.status(400).json({
         success: false,
-        message: 'Email verification OTP code is required for registration',
+        message: "Email verification OTP code is required for registration",
       });
     }
 
@@ -103,10 +111,15 @@ const registerUser = async (req, res) => {
     const key = `${cleanEmail}_email_verification`;
     const storedRecord = otpStore.get(key);
 
-    if (!storedRecord || storedRecord.code !== otp.trim() || Date.now() > storedRecord.expiresAt) {
+    if (
+      !storedRecord ||
+      storedRecord.code !== otp.trim() ||
+      Date.now() > storedRecord.expiresAt
+    ) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid or expired email verification OTP. Please check your email and try again.',
+        message:
+          "Invalid or expired email verification OTP. Please check your email and try again.",
       });
     }
 
@@ -121,10 +134,15 @@ const registerUser = async (req, res) => {
         email: email.toLowerCase(),
         password,
         displayName: fullName,
-        ...(formattedPhone.startsWith('+') ? { phoneNumber: formattedPhone } : {}),
+        ...(formattedPhone.startsWith("+")
+          ? { phoneNumber: formattedPhone }
+          : {}),
       });
     } catch (fbError) {
-      if (fbError.code === 'auth/invalid-phone-number' || fbError.message?.includes('phoneNumber')) {
+      if (
+        fbError.code === "auth/invalid-phone-number" ||
+        fbError.message?.includes("phoneNumber")
+      ) {
         // Fallback: Retry without phoneNumber in Firebase (we still store it in MongoDB)
         try {
           firebaseUser = await getAuth().createUser({
@@ -133,15 +151,21 @@ const registerUser = async (req, res) => {
             displayName: fullName,
           });
         } catch (retryError) {
-          console.warn('Firebase Auth creation failed on retry, using local-only profile fallback:', retryError.message);
+          console.warn(
+            "Firebase Auth creation failed on retry, using local-only profile fallback:",
+            retryError.message,
+          );
           firebaseUser = {
-            uid: 'local_' + Math.random().toString(36).substring(2, 11),
+            uid: "local_" + Math.random().toString(36).substring(2, 11),
           };
         }
       } else {
-        console.warn('Firebase Auth creation failed, using local-only profile fallback:', fbError.message);
+        console.warn(
+          "Firebase Auth creation failed, using local-only profile fallback:",
+          fbError.message,
+        );
         firebaseUser = {
-          uid: 'local_' + Math.random().toString(36).substring(2, 11),
+          uid: "local_" + Math.random().toString(36).substring(2, 11),
         };
       }
     }
@@ -159,7 +183,7 @@ const registerUser = async (req, res) => {
       state,
       pincode,
       dob: dob ? new Date(dob) : null,
-      status: 'Active',
+      status: "Active",
       firebaseUid: firebaseUser.uid,
       isEmailVerified: true,
       isPhoneVerified: true,
@@ -167,43 +191,50 @@ const registerUser = async (req, res) => {
 
     if (user) {
       // Send welcome email asynchronously
-      sendWelcomeEmail(user).catch((err) => console.error('Failed to send welcome email:', err));
-      
+      sendWelcomeEmail(user).catch((err) =>
+        console.error("Failed to send welcome email:", err),
+      );
+
       // Dispatch Welcome in-app notification
       createNotificationHelper({
         userId: user._id,
-        title: 'Welcome to ResQNet! 🐾',
+        title: "Welcome to ResQNet! 🐾",
         message: `Greetings ${user.fullName}! Welcome to ResQNet. We are delighted to have you join our animal welfare and rescue network. You can report emergencies, adopt pets, and register shelters.`,
-        type: 'Welcome',
-        priority: 'Medium',
-      }).catch((err) => console.error('Failed to create welcome notification:', err));
+        type: "Welcome",
+        priority: "Medium",
+      }).catch((err) =>
+        console.error("Failed to create welcome notification:", err),
+      );
 
       // Log login session
       await logUserSession(req, user._id);
 
       // 3. Authenticate to get a Firebase ID Token (or fallback to custom token)
-      let idToken = '';
+      let idToken = "";
       const apiKey = process.env.FIREBASE_API_KEY;
-      if (apiKey && apiKey !== 'your-web-api-key') {
+      if (apiKey && apiKey !== "your-web-api-key") {
         try {
           const response = await fetch(
             `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
             {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 email: email.toLowerCase(),
                 password,
                 returnSecureToken: true,
               }),
-            }
+            },
           );
           const data = await response.json();
           if (data.idToken) {
             idToken = data.idToken;
           }
         } catch (authError) {
-          console.error('Auto-signin after registration failed:', authError.message);
+          console.error(
+            "Auto-signin after registration failed:",
+            authError.message,
+          );
         }
       }
 
@@ -214,7 +245,7 @@ const registerUser = async (req, res) => {
 
       return res.status(201).json({
         success: true,
-        message: 'Account created successfully',
+        message: "Account created successfully",
         token: idToken,
         user: {
           _id: user._id,
@@ -236,14 +267,14 @@ const registerUser = async (req, res) => {
     } else {
       return res.status(400).json({
         success: false,
-        message: 'Invalid user data received',
+        message: "Invalid user data received",
       });
     }
   } catch (error) {
-    console.error('Registration Controller Error:', error);
+    console.error("Registration Controller Error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Server error during user registration',
+      message: error.message || "Server error during user registration",
     });
   }
 };
@@ -259,11 +290,15 @@ const loginUser = async (req, res) => {
     if (idToken) {
       try {
         const decodedToken = await getAuth().verifyIdToken(idToken);
-        const emailFromToken = decodedToken.email || '';
+        const emailFromToken = decodedToken.email || "";
 
-        let user = await User.findOne({ firebaseUid: decodedToken.uid }).select('-password');
+        let user = await User.findOne({ firebaseUid: decodedToken.uid }).select(
+          "-password",
+        );
         if (!user && emailFromToken) {
-          user = await User.findOne({ email: emailFromToken.toLowerCase() }).select('-password');
+          user = await User.findOne({
+            email: emailFromToken.toLowerCase(),
+          }).select("-password");
           if (user) {
             // Link account dynamically by saving firebaseUid
             user.firebaseUid = decodedToken.uid;
@@ -274,26 +309,36 @@ const loginUser = async (req, res) => {
         if (!user) {
           // Auto-create user in MongoDB if logging in via Google / Firebase Token for first time
           user = await User.create({
-            fullName: decodedToken.name || 'Google User',
+            fullName: decodedToken.name || "Google User",
             email: emailFromToken.toLowerCase(),
-            phoneNumber: decodedToken.phone_number || 'Not provided',
-            password: '',
-            role: 'Public User',
-            profilePic: decodedToken.picture || '',
-            status: 'Active',
+            phoneNumber: decodedToken.phone_number || "Not provided",
+            password: "",
+            role: "Public User",
+            profilePic: decodedToken.picture || "",
+            status: "Active",
             isEmailVerified: true,
             isPhoneVerified: Boolean(decodedToken.phone_number),
             firebaseUid: decodedToken.uid,
           });
 
+          // Send welcome email asynchronously
+          sendWelcomeEmail(user).catch((err) =>
+            console.error(
+              "Failed to send welcome email to new Google user:",
+              err,
+            ),
+          );
+
           // Dispatch Welcome in-app notification for new Google user
           createNotificationHelper({
             userId: user._id,
-            title: 'Welcome to ResQNet! 🐾',
+            title: "Welcome to ResQNet! 🐾",
             message: `Greetings ${user.fullName}! Welcome to ResQNet. We are delighted to have you join our animal welfare and rescue network. You can report emergencies, adopt pets, and register shelters.`,
-            type: 'Welcome',
-            priority: 'Medium',
-          }).catch((err) => console.error('Failed to create welcome notification:', err));
+            type: "Welcome",
+            priority: "Medium",
+          }).catch((err) =>
+            console.error("Failed to create welcome notification:", err),
+          );
         } else {
           let updated = false;
           if (!user.isEmailVerified) {
@@ -309,17 +354,18 @@ const loginUser = async (req, res) => {
           }
         }
 
-        if (user.isDeleted || user.status === 'Deleted') {
+        if (user.isDeleted || user.status === "Deleted") {
           return res.status(403).json({
             success: false,
-            message: 'Your account has been deactivated. Please contact support.',
+            message:
+              "Your account has been deactivated. Please contact support.",
           });
         }
 
-        if (user.status === 'Suspended') {
+        if (user.status === "Suspended") {
           return res.status(403).json({
             success: false,
-            message: 'Your account has been suspended. Please contact support.',
+            message: "Your account has been suspended. Please contact support.",
           });
         }
 
@@ -329,12 +375,12 @@ const loginUser = async (req, res) => {
 
         return res.status(200).json({
           success: true,
-          message: 'Logged in successfully',
+          message: "Logged in successfully",
           token,
           user,
         });
       } catch (tokenError) {
-        console.error('ID Token Verification Error:', tokenError);
+        console.error("ID Token Verification Error:", tokenError);
         return res.status(401).json({
           success: false,
           message: `Invalid Firebase ID token: ${tokenError.message}`,
@@ -346,35 +392,38 @@ const loginUser = async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide both email address and password, or a Firebase ID Token',
+        message:
+          "Please provide both email address and password, or a Firebase ID Token",
       });
     }
 
     const apiKey = process.env.FIREBASE_API_KEY;
-    
+
     // Direct local MongoDB password check fallback when API key is missing or a placeholder
-    if (!apiKey || apiKey === 'your-web-api-key') {
+    if (!apiKey || apiKey === "your-web-api-key") {
       const user = await User.findOne({ email: email.toLowerCase() });
       if (user && user.password) {
         const isMatch = await user.matchPassword(password);
         if (isMatch) {
-          if (user.isDeleted || user.status === 'Deleted') {
+          if (user.isDeleted || user.status === "Deleted") {
             return res.status(403).json({
               success: false,
-              message: 'Your account has been deactivated. Please contact support.',
+              message:
+                "Your account has been deactivated. Please contact support.",
             });
           }
-          if (user.status === 'Suspended') {
+          if (user.status === "Suspended") {
             return res.status(403).json({
               success: false,
-              message: 'Your account has been suspended. Please contact support.',
+              message:
+                "Your account has been suspended. Please contact support.",
             });
           }
           await logUserSession(req, user._id);
           const token = generateToken(user);
           return res.status(200).json({
             success: true,
-            message: 'Logged in successfully (Local Fallback)',
+            message: "Logged in successfully (Local Fallback)",
             token,
             user,
           });
@@ -382,25 +431,25 @@ const loginUser = async (req, res) => {
       }
       return res.status(401).json({
         success: false,
-        message: 'Invalid email address or password',
+        message: "Invalid email address or password",
       });
     }
 
-    let returnedIdToken = '';
-    let firebaseUid = '';
+    let returnedIdToken = "";
+    let firebaseUid = "";
 
     try {
       const response = await fetch(
         `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: email.toLowerCase(),
             password,
             returnSecureToken: true,
           }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -411,23 +460,25 @@ const loginUser = async (req, res) => {
         if (user && user.password) {
           const isMatch = await user.matchPassword(password);
           if (isMatch) {
-            if (user.isDeleted || user.status === 'Deleted') {
+            if (user.isDeleted || user.status === "Deleted") {
               return res.status(403).json({
                 success: false,
-                message: 'Your account has been deactivated. Please contact support.',
+                message:
+                  "Your account has been deactivated. Please contact support.",
               });
             }
-            if (user.status === 'Suspended') {
+            if (user.status === "Suspended") {
               return res.status(403).json({
                 success: false,
-                message: 'Your account has been suspended. Please contact support.',
+                message:
+                  "Your account has been suspended. Please contact support.",
               });
             }
             await logUserSession(req, user._id);
             const token = generateToken(user);
             return res.status(200).json({
               success: true,
-              message: 'Logged in successfully (Local Fallback)',
+              message: "Logged in successfully (Local Fallback)",
               token,
               user,
             });
@@ -436,37 +487,39 @@ const loginUser = async (req, res) => {
 
         return res.status(401).json({
           success: false,
-          message: data.error.message || 'Invalid email address or password',
+          message: "Invalid email address or password",
         });
       }
 
       returnedIdToken = data.idToken;
       firebaseUid = data.localId;
     } catch (authError) {
-      console.error('Firebase Auth REST API Error:', authError.message);
-      
+      console.error("Firebase Auth REST API Error:", authError.message);
+
       // Attempt local MongoDB fallback on network error/server communication error
       const user = await User.findOne({ email: email.toLowerCase() });
       if (user && user.password) {
         const isMatch = await user.matchPassword(password);
         if (isMatch) {
-          if (user.isDeleted || user.status === 'Deleted') {
+          if (user.isDeleted || user.status === "Deleted") {
             return res.status(403).json({
               success: false,
-              message: 'Your account has been deactivated. Please contact support.',
+              message:
+                "Your account has been deactivated. Please contact support.",
             });
           }
-          if (user.status === 'Suspended') {
+          if (user.status === "Suspended") {
             return res.status(403).json({
               success: false,
-              message: 'Your account has been suspended. Please contact support.',
+              message:
+                "Your account has been suspended. Please contact support.",
             });
           }
           await logUserSession(req, user._id);
           const token = generateToken(user);
           return res.status(200).json({
             success: true,
-            message: 'Logged in successfully (Local Fallback)',
+            message: "Logged in successfully (Local Fallback)",
             token,
             user,
           });
@@ -475,7 +528,7 @@ const loginUser = async (req, res) => {
 
       return res.status(500).json({
         success: false,
-        message: 'Authentication failed due to server communication error',
+        message: "Authentication failed due to server communication error",
       });
     }
 
@@ -492,21 +545,21 @@ const loginUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'Account verified, but MongoDB profile was not found.',
+        message: "Account verified, but MongoDB profile was not found.",
       });
     }
 
-    if (user.isDeleted || user.status === 'Deleted') {
+    if (user.isDeleted || user.status === "Deleted") {
       return res.status(403).json({
         success: false,
-        message: 'Your account has been deactivated. Please contact support.',
+        message: "Your account has been deactivated. Please contact support.",
       });
     }
 
-    if (user.status === 'Suspended') {
+    if (user.status === "Suspended") {
       return res.status(403).json({
         success: false,
-        message: 'Your account has been suspended. Please contact support.',
+        message: "Your account has been suspended. Please contact support.",
       });
     }
 
@@ -516,7 +569,7 @@ const loginUser = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Logged in successfully',
+      message: "Logged in successfully",
       token,
       user: {
         _id: user._id,
@@ -536,7 +589,7 @@ const loginUser = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Login Controller Error:', error);
+    console.error("Login Controller Error:", error);
     return res.status(500).json({
       success: false,
       message: `Server error during user login: ${error.message}`,
@@ -549,11 +602,11 @@ const loginUser = async (req, res) => {
 // @access  Private
 const getMe = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('-password');
+    const user = await User.findById(req.user._id).select("-password");
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User profile not found',
+        message: "User profile not found",
       });
     }
 
@@ -562,10 +615,10 @@ const getMe = async (req, res) => {
       user,
     });
   } catch (error) {
-    console.error('Get Me Error:', error);
+    console.error("Get Me Error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Server error fetching user profile',
+      message: error.message || "Server error fetching user profile",
     });
   }
 };
@@ -580,19 +633,19 @@ const googleAuth = async (req, res) => {
     if (!credential) {
       return res.status(400).json({
         success: false,
-        message: 'No Google credential token provided',
+        message: "No Google credential token provided",
       });
     }
 
     // Verify Google ID Token via Google API
     const response = await fetch(
-      `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`,
     );
 
     if (!response.ok) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid Google credential token',
+        message: "Invalid Google credential token",
       });
     }
 
@@ -601,7 +654,7 @@ const googleAuth = async (req, res) => {
     if (!payload.email) {
       return res.status(400).json({
         success: false,
-        message: 'Google account does not have an email address associated',
+        message: "Google account does not have an email address associated",
       });
     }
 
@@ -619,18 +672,21 @@ const googleAuth = async (req, res) => {
         });
         firebaseUid = firebaseUser.uid;
       } catch (fbError) {
-        console.warn('Firebase Auth creation failed for Google user, using Google sub ID:', fbError.message);
+        console.warn(
+          "Firebase Auth creation failed for Google user, using Google sub ID:",
+          fbError.message,
+        );
       }
 
       // Create in MongoDB
       user = await User.create({
-        fullName: payload.name || 'Google User',
+        fullName: payload.name || "Google User",
         email: payload.email.toLowerCase(),
-        phoneNumber: 'Not provided', // default required field
-        password: '', // no local password
-        role: 'Public User',
-        profilePic: payload.picture || '',
-        status: 'Active',
+        phoneNumber: "Not provided", // default required field
+        password: "", // no local password
+        role: "Public User",
+        profilePic: payload.picture || "",
+        status: "Active",
         isEmailVerified: true,
         firebaseUid,
       });
@@ -638,17 +694,19 @@ const googleAuth = async (req, res) => {
       // Dispatch Welcome in-app notification for new Google user
       createNotificationHelper({
         userId: user._id,
-        title: 'Welcome to ResQNet! 🐾',
+        title: "Welcome to ResQNet! 🐾",
         message: `Greetings ${user.fullName}! Welcome to ResQNet. We are delighted to have you join our animal welfare and rescue network. You can report emergencies, adopt pets, and register shelters.`,
-        type: 'Welcome',
-        priority: 'Medium',
-      }).catch((err) => console.error('Failed to create welcome notification:', err));
+        type: "Welcome",
+        priority: "Medium",
+      }).catch((err) =>
+        console.error("Failed to create welcome notification:", err),
+      );
     } else {
       // User exists, check status
-      if (user.status === 'Suspended') {
+      if (user.status === "Suspended") {
         return res.status(403).json({
           success: false,
-          message: 'Your account has been suspended. Please contact support.',
+          message: "Your account has been suspended. Please contact support.",
         });
       }
 
@@ -679,15 +737,15 @@ const googleAuth = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Authenticated successfully with Google',
+      message: "Authenticated successfully with Google",
       token,
       user,
     });
   } catch (error) {
-    console.error('Google Auth Error:', error);
+    console.error("Google Auth Error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Server error during Google authentication',
+      message: error.message || "Server error during Google authentication",
     });
   }
 };
@@ -700,34 +758,76 @@ const otpStore = new Map();
 // @access  Public
 const sendOtp = async (req, res) => {
   try {
-    const { email, reason = 'forgot_password' } = req.body;
+    const { email, reason = "forgot_password" } = req.body;
     if (!email) {
-      return res.status(400).json({ success: false, message: 'Email address is required' });
+      return res
+        .status(400)
+        .json({ success: false, message: "Email address is required" });
     }
 
     const cleanEmail = email.trim().toLowerCase();
     const user = await User.findOne({ email: cleanEmail });
 
-    if (!user && reason === 'forgot_password') {
-      return res.status(404).json({ success: false, message: 'No account registered with this email address' });
+    if (!user && reason === "forgot_password") {
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message: "No account registered with this email address",
+        });
     }
 
-    if (user && reason === 'email_verification') {
-      return res.status(400).json({ success: false, message: 'An account with this email address already exists' });
+    if (
+      user &&
+      (reason === "email_verification" ||
+        reason === "shelter_email_verification" ||
+        reason === "rescue_team_email_verification")
+    ) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "An account with this email address already exists",
+        });
+    }
+
+    if (reason === "shelter_email_verification") {
+      const existingShelter = await Shelter.findOne({
+        shelterEmail: cleanEmail,
+        isDeleted: { $ne: true },
+      });
+      if (existingShelter) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "A shelter with this email address is already registered",
+          });
+      }
     }
 
     // Generate 6-digit OTP code
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const key = `${cleanEmail}_${reason}`;
-    
+
     // Expire in 10 minutes (600,000 ms)
     otpStore.set(key, { code: otpCode, expiresAt: Date.now() + 600000 });
 
     // Trigger Email Dispatch
-    if (reason === 'email_verification' || reason === 'shelter_email_verification') {
-      await sendVerificationEmail(cleanEmail, otpCode, req.body.fullName || req.body.shelterName || 'Shelter Partner');
+    if (
+      reason === "email_verification" ||
+      reason === "shelter_email_verification"
+    ) {
+      await sendVerificationEmail(
+        cleanEmail,
+        otpCode,
+        req.body.fullName || req.body.shelterName || "Shelter Partner",
+      );
     } else {
-      await sendPasswordResetEmail(user || { email: cleanEmail, fullName: 'Valued User' }, otpCode);
+      await sendPasswordResetEmail(
+        user || { email: cleanEmail, fullName: "Valued User" },
+        otpCode,
+      );
     }
 
     return res.status(200).json({
@@ -735,8 +835,13 @@ const sendOtp = async (req, res) => {
       message: `A 6-digit verification code has been sent to ${cleanEmail}`,
     });
   } catch (error) {
-    console.error('Send OTP Error:', error);
-    return res.status(500).json({ success: false, message: error.message || 'Failed to send OTP code' });
+    console.error("Send OTP Error:", error);
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: error.message || "Failed to send OTP code",
+      });
   }
 };
 
@@ -745,35 +850,126 @@ const sendOtp = async (req, res) => {
 // @access  Public
 const verifyOtp = async (req, res) => {
   try {
-    const { email, otp, reason = 'forgot_password' } = req.body;
+    const { email, otp, reason = "forgot_password" } = req.body;
     if (!email || !otp) {
-      return res.status(400).json({ success: false, message: 'Email address and OTP code are required' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Email address and OTP code are required",
+        });
     }
 
     const cleanEmail = email.trim().toLowerCase();
+
+    if (
+      reason === "email_verification" ||
+      reason === "shelter_email_verification"
+    ) {
+      const user = await User.findOne({ email: cleanEmail });
+      if (user) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "An account with this email address already exists",
+          });
+      }
+      if (reason === "shelter_email_verification") {
+        const existingShelter = await Shelter.findOne({
+          shelterEmail: cleanEmail,
+          isDeleted: { $ne: true },
+        });
+        if (existingShelter) {
+          return res
+            .status(400)
+            .json({
+              success: false,
+              message:
+                "A shelter with this email address is already registered",
+            });
+        }
+      }
+    }
+
     const key = `${cleanEmail}_${reason}`;
     const storedRecord = otpStore.get(key);
 
     if (!storedRecord) {
-      return res.status(400).json({ success: false, message: 'No OTP request found for this email address. Please request a new code.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "No OTP request found for this email address. Please request a new code.",
+        });
     }
 
     if (Date.now() > storedRecord.expiresAt) {
       otpStore.delete(key);
-      return res.status(400).json({ success: false, message: 'Verification OTP has expired. Please request a new code.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Verification OTP has expired. Please request a new code.",
+        });
     }
 
     if (storedRecord.code !== otp.trim()) {
-      return res.status(400).json({ success: false, message: 'Invalid verification OTP code. Please check and try again.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Invalid verification OTP code. Please check and try again.",
+        });
     }
 
     return res.status(200).json({
       success: true,
-      message: 'OTP code verified successfully',
+      message: "OTP code verified successfully",
     });
   } catch (error) {
-    console.error('Verify OTP Error:', error);
-    return res.status(500).json({ success: false, message: error.message || 'Failed to verify OTP code' });
+    console.error("Verify OTP Error:", error);
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: error.message || "Failed to verify OTP code",
+      });
+  }
+};
+
+// @desc    Check if an email already exists in User or Shelter collection
+// @route   GET /api/auth/check-email
+// @access  Public
+const checkEmailExists = async (req, res) => {
+  try {
+    const email = (req.query.email || "").trim().toLowerCase();
+    if (!email) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Email address is required" });
+    }
+
+    const user = await User.findOne({ email });
+    const shelter = await Shelter.findOne({
+      shelterEmail: email,
+      isDeleted: { $ne: true },
+    });
+
+    const exists = Boolean(user || shelter);
+    return res.status(200).json({
+      success: true,
+      exists,
+      message: user
+        ? "An account with this email address already exists"
+        : shelter
+          ? "A shelter with this email address is already registered"
+          : "Email is available",
+    });
+  } catch (error) {
+    console.error("Check Email Error:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -782,22 +978,38 @@ const verifyOtp = async (req, res) => {
 // @access  Public
 const resetPassword = async (req, res) => {
   try {
-    const { email, otp, newPassword, reason = 'forgot_password' } = req.body;
+    const { email, otp, newPassword, reason = "forgot_password" } = req.body;
     if (!email || !otp || !newPassword) {
-      return res.status(400).json({ success: false, message: 'Email, OTP code, and new password are required' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Email, OTP code, and new password are required",
+        });
     }
 
     const cleanEmail = email.trim().toLowerCase();
     const key = `${cleanEmail}_${reason}`;
     const storedRecord = otpStore.get(key);
 
-    if (!storedRecord || storedRecord.code !== otp.trim() || Date.now() > storedRecord.expiresAt) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired OTP session. Please request a new code.' });
+    if (
+      !storedRecord ||
+      storedRecord.code !== otp.trim() ||
+      Date.now() > storedRecord.expiresAt
+    ) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Invalid or expired OTP session. Please request a new code.",
+        });
     }
 
     const user = await User.findOne({ email: cleanEmail });
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User account not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: "User account not found" });
     }
 
     user.password = newPassword;
@@ -808,31 +1020,55 @@ const resetPassword = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Your password has been reset successfully. You can now log in.',
+      message: "Your password has been reset successfully. You can now log in.",
     });
   } catch (error) {
-    console.error('Reset Password Error:', error);
-    return res.status(500).json({ success: false, message: error.message || 'Failed to reset password' });
+    console.error("Reset Password Error:", error);
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: error.message || "Failed to reset password",
+      });
   }
 };
 
 const updateProfile = async (req, res) => {
   try {
-    const { fullName, phoneNumber, dob, address, city, district, state, pincode, isPhoneVerified } = req.body;
+    const {
+      fullName,
+      phoneNumber,
+      dob,
+      address,
+      city,
+      district,
+      state,
+      pincode,
+      isPhoneVerified,
+    } = req.body;
     const userId = req.user?._id;
 
     if (!userId) {
-      return res.status(401).json({ success: false, message: 'User authorization token required' });
+      return res
+        .status(401)
+        .json({ success: false, message: "User authorization token required" });
     }
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User account not found' });
+      return res
+        .status(404)
+        .json({ success: false, message: "User account not found" });
     }
 
     // Phone number is MANDATORY
     if (!phoneNumber || !phoneNumber.trim()) {
-      return res.status(400).json({ success: false, message: 'Phone number is mandatory and cannot be empty' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Phone number is mandatory and cannot be empty",
+        });
     }
 
     const cleanPhone = phoneNumber.trim();
@@ -841,13 +1077,14 @@ const updateProfile = async (req, res) => {
     if (cleanPhone !== user.phoneNumber && !isPhoneVerified) {
       return res.status(400).json({
         success: false,
-        message: 'Phone number verification (OTP) is required when updating phone number.',
+        message:
+          "Phone number verification (OTP) is required when updating phone number.",
       });
     }
 
     if (fullName) user.fullName = fullName.trim();
     user.phoneNumber = cleanPhone;
-    if (dob !== undefined && dob !== '') user.dob = new Date(dob);
+    if (dob !== undefined && dob !== "") user.dob = new Date(dob);
     if (address !== undefined) user.address = address;
     if (city !== undefined) user.city = city;
     if (district !== undefined) user.district = district;
@@ -865,12 +1102,17 @@ const updateProfile = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Profile updated successfully',
+      message: "Profile updated successfully",
       user,
     });
   } catch (error) {
-    console.error('Update Profile Error:', error);
-    return res.status(500).json({ success: false, message: error.message || 'Failed to update profile' });
+    console.error("Update Profile Error:", error);
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: error.message || "Failed to update profile",
+      });
   }
 };
 
@@ -882,34 +1124,51 @@ const changePassword = async (req, res) => {
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({ success: false, message: 'Current password and new password are required.' });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Current password and new password are required.",
+        });
     }
 
-    const user = await User.findById(req.user._id).select('+password');
+    const user = await User.findById(req.user._id).select("+password");
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found." });
     }
 
     // Google/Firebase-only accounts may have no password set
     if (!user.password) {
       return res.status(400).json({
         success: false,
-        message: 'Your account uses Google sign-in and does not have a password. Please use "Forgot Password" to set one.',
+        message:
+          'Your account uses Google sign-in and does not have a password. Please use "Forgot Password" to set one.',
       });
     }
 
     const isMatch = await user.matchPassword(currentPassword);
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+      return res
+        .status(401)
+        .json({ success: false, message: "Current password is incorrect." });
     }
 
     user.password = newPassword;
     await user.save(); // pre-save hook will hash the new password
 
-    return res.status(200).json({ success: true, message: 'Password changed successfully.' });
+    return res
+      .status(200)
+      .json({ success: true, message: "Password changed successfully." });
   } catch (error) {
-    console.error('Change Password Error:', error);
-    return res.status(500).json({ success: false, message: error.message || 'Failed to change password.' });
+    console.error("Change Password Error:", error);
+    return res
+      .status(500)
+      .json({
+        success: false,
+        message: error.message || "Failed to change password.",
+      });
   }
 };
 
@@ -923,4 +1182,5 @@ module.exports = {
   resetPassword,
   updateProfile,
   changePassword,
+  checkEmailExists,
 };

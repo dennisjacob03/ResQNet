@@ -9,10 +9,12 @@ const shelterApplicationSchema = new mongoose.Schema(
     applicantId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      required: true,
     },
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+    applicantName: {
+      type: String,
+      trim: true,
+      default: '',
     },
     registrationType: {
       type: String,
@@ -49,9 +51,30 @@ const shelterApplicationSchema = new mongoose.Schema(
       type: Number,
       required: [true, 'Shelter contact number is required'],
     },
-    password: {
+    address: {
       type: String,
       default: '',
+      trim: true,
+    },
+    city: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    district: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    state: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    pincode: {
+      type: String,
+      default: '',
+      trim: true,
     },
     latitude: {
       type: Number,
@@ -131,11 +154,6 @@ shelterApplicationSchema.pre('save', async function () {
   if (!this.shelterApplicationId) {
     const count = await mongoose.model('ShelterApplication').countDocuments();
     this.shelterApplicationId = `SA-${String(count + 1).padStart(4, '0')}`;
-  }
-  if (this.applicantId && !this.userId) {
-    this.userId = this.applicantId;
-  } else if (this.userId && !this.applicantId) {
-    this.applicantId = this.userId;
   }
 });
 

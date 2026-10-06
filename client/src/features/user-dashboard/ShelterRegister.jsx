@@ -15,7 +15,6 @@ import {
   Smartphone,
   RefreshCw,
   Eye,
-  EyeOff,
   Lock,
   Calendar,
   FileText,
@@ -35,6 +34,8 @@ import {
 } from '../shelter/shelterValidation';
 import { checkProfileCompletion } from '../../utils/profileUtils';
 import { ProfileRequiredCard } from '../../components/common/ProfileRequiredCard';
+import { checkEmailApi } from '../../services/authService';
+import AddressForm from '../../components/address/AddressForm';
 
 const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateToProfile }) => {
   const {
@@ -76,10 +77,11 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
   const [sShelterName, setSShelterName] = useState('');
   const [sShelterEmail, setSShelterEmail] = useState('');
   const [sShelterPhone, setSShelterPhone] = useState('');
-  const [sPassword, setSPassword] = useState('');
-  const [sConfirmPassword, setSConfirmPassword] = useState('');
-  const [showSPassword, setShowSPassword] = useState(false);
-  const [showSConfirmPassword, setShowSConfirmPassword] = useState(false);
+  const [sAddress, setSAddress] = useState('');
+  const [sPincode, setSPincode] = useState('');
+  const [sState, setSState] = useState('');
+  const [sDistrict, setSDistrict] = useState('');
+  const [sCity, setSCity] = useState('');
   const [sLatitude, setSLatitude] = useState('');
   const [sLongitude, setSLongitude] = useState('');
   const [sTotalStaffs, setSTotalStaffs] = useState('');
@@ -130,6 +132,11 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
       registrationNumber: sRegistrationNumber,
       shelterEmail: sShelterEmail,
       shelterPhoneNumber: sShelterPhone,
+      address: sAddress,
+      pincode: sPincode,
+      state: sState,
+      district: sDistrict,
+      city: sCity,
       latitude: sLatitude,
       longitude: sLongitude,
       totalStaffs: sTotalStaffs,
@@ -165,6 +172,75 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
   const handleShelterFieldBlur = (field, value) => {
     setShelterTouched((prev) => ({ ...prev, [field]: true }));
     validateSingleShelterField(field, value);
+  };
+
+  const handleShelterAddressChange = (updated) => {
+    const newAddress = updated.address !== undefined ? updated.address : sAddress;
+    const newPincode = updated.pincode !== undefined ? updated.pincode : sPincode;
+    const newState = updated.state !== undefined ? updated.state : sState;
+    const newDistrict = updated.district !== undefined ? updated.district : sDistrict;
+    const newCity = updated.city !== undefined ? updated.city : sCity;
+
+    setSAddress(newAddress);
+    setSPincode(newPincode);
+    setSState(newState);
+    setSDistrict(newDistrict);
+    setSCity(newCity);
+
+    const currentForm = {
+      shelterName: sShelterName,
+      registrationType: sRegistrationType,
+      registrationNumber: sRegistrationNumber,
+      shelterEmail: sShelterEmail,
+      shelterPhoneNumber: sShelterPhone,
+      address: newAddress,
+      pincode: newPincode,
+      state: newState,
+      district: newDistrict,
+      city: newCity,
+      latitude: sLatitude,
+      longitude: sLongitude,
+      totalStaffs: sTotalStaffs,
+      totalCages: sTotalCages,
+      occupiedCages: sOccupiedCages,
+    };
+
+    // If fields were touched, validate them against updated data
+    ['address', 'pincode', 'state', 'district', 'city'].forEach((k) => {
+      if (shelterTouched[k]) {
+        const res = validateShelterField(k, currentForm[k], currentForm);
+        setShelterFieldErrors((prev) => ({
+          ...prev,
+          [k]: res.valid ? '' : res.error,
+        }));
+      }
+    });
+  };
+
+  const handleShelterAddressBlur = (field) => {
+    setShelterTouched((prev) => ({ ...prev, [field]: true }));
+    const currentForm = {
+      shelterName: sShelterName,
+      registrationType: sRegistrationType,
+      registrationNumber: sRegistrationNumber,
+      shelterEmail: sShelterEmail,
+      shelterPhoneNumber: sShelterPhone,
+      address: sAddress,
+      pincode: sPincode,
+      state: sState,
+      district: sDistrict,
+      city: sCity,
+      latitude: sLatitude,
+      longitude: sLongitude,
+      totalStaffs: sTotalStaffs,
+      totalCages: sTotalCages,
+      occupiedCages: sOccupiedCages,
+    };
+    const res = validateShelterField(field, currentForm[field], currentForm);
+    setShelterFieldErrors((prev) => ({
+      ...prev,
+      [field]: res.valid ? '' : res.error,
+    }));
   };
 
   const handleUseMyLocation = () => {
@@ -210,6 +286,11 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
       registrationNumber: sRegistrationNumber.trim().toUpperCase(),
       shelterEmail: sShelterEmail,
       shelterPhoneNumber: sShelterPhone,
+      address: sAddress.trim(),
+      pincode: sPincode.trim(),
+      state: sState.trim(),
+      district: sDistrict.trim(),
+      city: sCity.trim(),
       latitude: sLatitude,
       longitude: sLongitude,
       totalStaffs: sTotalStaffs,
@@ -226,6 +307,11 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
         registrationNumber: true,
         shelterEmail: true,
         shelterPhoneNumber: true,
+        address: true,
+        pincode: true,
+        state: true,
+        district: true,
+        city: true,
         latitude: true,
         longitude: true,
         totalStaffs: true,
@@ -237,25 +323,33 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
       return;
     }
 
-    if (sPassword && sPassword.trim().length < 6) {
-      setShelterError('Password must be at least 6 characters long.');
-      return;
-    }
-
-    if (sPassword && sPassword.trim() !== sConfirmPassword.trim()) {
-      setShelterError('Passwords do not match. Please verify your confirm password.');
-      return;
-    }
-
     setShelterSubmitting(true);
     try {
-      // 1. Dispatch Email OTP
-      const emailRes = await sendOtp(sShelterEmail.trim(), 'shelter_email_verification', sShelterName.trim());
-      if (!emailRes.success) {
-        console.warn('Email OTP dispatch note:', emailRes.message);
+      // 1. Verify if an account with this shelter email already exists
+      try {
+        const checkRes = await checkEmailApi(sShelterEmail.trim());
+        if (checkRes.exists) {
+          setShelterError(checkRes.message || 'An account with this email address already exists. Please choose a different shelter email.');
+          setShelterFieldErrors((prev) => ({
+            ...prev,
+            shelterEmail: checkRes.message || 'An account with this email address already exists',
+          }));
+          setShelterSubmitting(false);
+          return;
+        }
+      } catch (checkErr) {
+        // Fallback to sendOtp check if checkEmailApi encounters network error
       }
 
-      // 2. Dispatch Phone OTP via Firebase
+      // 2. Dispatch Email OTP (backend also checks for existing account/shelter)
+      const emailRes = await sendOtp(sShelterEmail.trim(), 'shelter_email_verification', sShelterName.trim());
+      if (!emailRes.success) {
+        setShelterError(emailRes.message || 'Failed to dispatch verification code. Please verify your shelter email.');
+        setShelterSubmitting(false);
+        return;
+      }
+
+      // 3. Dispatch Phone OTP via Firebase
       try {
         const appVerifier = setupRecaptcha('recaptcha-container-shelter');
         const phoneRes = await sendPhoneOtp(sShelterPhone.trim(), appVerifier);
@@ -403,7 +497,11 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
         shelterName: sShelterName.trim(),
         shelterEmail: sShelterEmail.trim(),
         shelterPhoneNumber: Number(sShelterPhone),
-        password: sPassword.trim(),
+        address: sAddress.trim(),
+        pincode: sPincode.trim(),
+        state: sState.trim(),
+        district: sDistrict.trim(),
+        city: sCity.trim(),
         latitude: parseFloat(sLatitude),
         longitude: parseFloat(sLongitude),
         totalStaffs: Number(sTotalStaffs),
@@ -431,8 +529,11 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
         setSRegistrationNumber('');
         setSShelterEmail('');
         setSShelterPhone('');
-        setSPassword('');
-        setSConfirmPassword('');
+        setSAddress('');
+        setSPincode('');
+        setSState('');
+        setSDistrict('');
+        setSCity('');
         setSLatitude('');
         setSLongitude('');
         setSTotalStaffs('');
@@ -560,12 +661,48 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
                 </span>
               </div>
 
+              {/* Profile sync information banner */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl text-xs text-emerald-900">
+                <span className="flex items-center gap-2 font-semibold">
+                  <Lock className="w-4 h-4 text-[#237737] shrink-0" />
+                  Applicant contact details (Email, Phone) are linked to your profile and can only be updated from your Profile page.
+                </span>
+                {onNavigateToProfile && (
+                  <button
+                    type="button"
+                    onClick={onNavigateToProfile}
+                    className="px-3 py-1 bg-white border border-emerald-300 text-[#237737] hover:bg-emerald-50 rounded-lg font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-xs"
+                  >
+                    Edit in Profile &rarr;
+                  </button>
+                )}
+              </div>
+
               {/* Section 1: Shelter Identity */}
               <div className="bg-white border border-slate-100 rounded-2xl p-6 space-y-4 shadow-sm">
                 <h3 className="text-sm font-extrabold text-slate-700 flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-[#237737]" /> Shelter Identity
+                  <Building2 className="w-4 h-4 text-[#237737]" /> Shelter Identity & Contacts
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Shelter Manager & Applicant Info Banner */}
+                  <div className="sm:col-span-2 bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3.5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-[#237737]/15 flex items-center justify-center text-[#237737] font-extrabold text-sm">
+                        {user?.fullName?.charAt(0) || 'M'}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wide">Designated Shelter Manager</span>
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md">You (From Profile)</span>
+                        </div>
+                        <p className="text-sm font-bold text-slate-800">{user?.fullName || 'Current User'}</p>
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-slate-500 hidden sm:inline-block font-medium">
+                      You will be assigned as the Shelter Manager
+                    </span>
+                  </div>
+
                   {/* Shelter Name */}
                   <div className="space-y-1.5 sm:col-span-2">
                     <div className="flex items-center justify-between">
@@ -668,19 +805,31 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold text-slate-600">
-                        Shelter Email <span className="text-rose-500">*</span>
+                        Shelter Official Email <span className="text-rose-500">*</span>
                       </label>
-                      {shelterTouched.shelterEmail && !shelterFieldErrors.shelterEmail && sShelterEmail && (
-                        <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" /> Valid
-                        </span>
-                      )}
+                      <span className="text-[10px] text-slate-400 font-semibold">Shelter's email</span>
                     </div>
                     <input
                       type="email"
                       value={sShelterEmail}
                       onChange={(e) => handleShelterFieldChange('shelterEmail', e.target.value, setSShelterEmail)}
-                      onBlur={(e) => handleShelterFieldBlur('shelterEmail', e.target.value)}
+                      onBlur={async (e) => {
+                        const val = e.target.value.trim();
+                        handleShelterFieldBlur('shelterEmail', val);
+                        if (val && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+                          try {
+                            const res = await checkEmailApi(val);
+                            if (res.exists) {
+                              setShelterFieldErrors((prev) => ({
+                                ...prev,
+                                shelterEmail: res.message || 'An account with this email address already exists',
+                              }));
+                            }
+                          } catch (err) {
+                            // ignore soft check error
+                          }
+                        }
+                      }}
                       placeholder="shelter@example.com"
                       required
                       className={`w-full px-4 py-2.5 bg-[#F8FAF9] border rounded-xl focus:outline-none text-sm font-semibold transition ${
@@ -700,15 +849,9 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold text-slate-600">
-                        Contact Number <span className="text-rose-500">*</span>
+                        Shelter Contact Number <span className="text-rose-500">*</span>
                       </label>
-                      {shelterTouched.shelterPhoneNumber &&
-                        !shelterFieldErrors.shelterPhoneNumber &&
-                        sShelterPhone && (
-                          <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3" /> Valid
-                          </span>
-                        )}
+                      <span className="text-[10px] text-slate-400 font-semibold">Shelter official phone</span>
                     </div>
                     <input
                       type="tel"
@@ -733,145 +876,109 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
                       </p>
                     )}
                   </div>
-
-                  {/* Account Password */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-600">
-                        Shelter Dashboard Password
-                      </label>
-                      <span className="text-[10px] text-slate-400 font-medium">Min. 6 chars (Optional)</span>
-                    </div>
-                    <div className="relative">
-                      <input
-                        type={showSPassword ? 'text' : 'password'}
-                        value={sPassword}
-                        onChange={(e) => setSPassword(e.target.value)}
-                        placeholder="Leave blank to auto-generate"
-                        className="w-full pl-4 pr-10 py-2.5 bg-[#F8FAF9] border border-slate-200 rounded-xl focus:outline-none focus:border-[#237737] text-sm font-semibold transition"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSPassword((prev) => !prev)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                      >
-                        {showSPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Confirm Password */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-600">
-                        Confirm Password
-                      </label>
-                      {sConfirmPassword && (
-                        <span
-                          className={`text-[10px] font-bold flex items-center gap-1 ${
-                            sPassword === sConfirmPassword ? 'text-emerald-600' : 'text-rose-500'
-                          }`}
-                        >
-                          {sPassword === sConfirmPassword ? '✓ Matches' : 'Mismatch'}
-                        </span>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <input
-                        type={showSConfirmPassword ? 'text' : 'password'}
-                        value={sConfirmPassword}
-                        onChange={(e) => setSConfirmPassword(e.target.value)}
-                        placeholder="Re-enter password"
-                        className={`w-full pl-4 pr-10 py-2.5 bg-[#F8FAF9] border rounded-xl focus:outline-none text-sm font-semibold transition ${
-                          sConfirmPassword && sPassword !== sConfirmPassword
-                            ? 'border-rose-300 focus:border-rose-500'
-                            : 'border-slate-200 focus:border-[#237737]'
-                        }`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowSConfirmPassword((prev) => !prev)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
-                      >
-                        {showSConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </div>
 
-              {/* Section 2: Location */}
-              <div className="bg-white border border-slate-100 rounded-2xl p-6 space-y-4 shadow-sm">
-                <div className="flex items-center justify-between">
+              {/* Section 2: Shelter Physical Address & Location */}
+              <div className="bg-white border border-slate-100 rounded-2xl p-6 space-y-6 shadow-sm">
+                <div className="space-y-1">
                   <h3 className="text-sm font-extrabold text-slate-700 flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-[#237737]" /> Shelter Location Coordinates
+                    <MapPin className="w-4 h-4 text-[#237737]" /> Shelter Physical Address & PIN Code
                   </h3>
-                  <button
-                    type="button"
-                    onClick={handleUseMyLocation}
-                    disabled={sLocating}
-                    className="px-3.5 py-1.5 bg-[#237737]/10 hover:bg-[#237737]/20 text-[#237737] rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Navigation className={`w-3.5 h-3.5 ${sLocating ? 'animate-spin' : ''}`} />
-                    {sLocating ? 'Detecting…' : 'Use My Location'}
-                  </button>
+                  <p className="text-xs text-slate-400 font-semibold">
+                    Enter the facility's physical address. Entering a valid 6-digit PIN code will automatically detect the State, District, and City.
+                  </p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Latitude */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-600">
-                      Latitude (-90 to +90) <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={sLatitude}
-                      onChange={(e) => handleShelterFieldChange('latitude', e.target.value, setSLatitude)}
-                      onBlur={(e) => handleShelterFieldBlur('latitude', e.target.value)}
-                      placeholder="e.g. 9.931233"
-                      required
-                      className={`w-full px-4 py-2.5 bg-[#F8FAF9] border rounded-xl focus:outline-none text-sm font-semibold transition ${
-                        shelterTouched.latitude && shelterFieldErrors.latitude
-                          ? 'border-rose-300 focus:border-rose-500 bg-rose-50/20'
-                          : 'border-slate-200 focus:border-[#237737]'
-                      }`}
-                    />
-                    {shelterTouched.latitude && shelterFieldErrors.latitude && (
-                      <p className="text-[11px] text-rose-500 font-bold flex items-center gap-1 mt-1 animate-fade-in">
-                        <AlertCircle className="w-3 h-3 shrink-0" /> {shelterFieldErrors.latitude}
-                      </p>
-                    )}
-                  </div>
 
-                  {/* Longitude */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-600">
-                      Longitude (-180 to +180) <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={sLongitude}
-                      onChange={(e) => handleShelterFieldChange('longitude', e.target.value, setSLongitude)}
-                      onBlur={(e) => handleShelterFieldBlur('longitude', e.target.value)}
-                      placeholder="e.g. 76.267303"
-                      required
-                      className={`w-full px-4 py-2.5 bg-[#F8FAF9] border rounded-xl focus:outline-none text-sm font-semibold transition ${
-                        shelterTouched.longitude && shelterFieldErrors.longitude
-                          ? 'border-rose-300 focus:border-rose-500 bg-rose-50/20'
-                          : 'border-slate-200 focus:border-[#237737]'
-                      }`}
-                    />
-                    {shelterTouched.longitude && shelterFieldErrors.longitude && (
-                      <p className="text-[11px] text-rose-500 font-bold flex items-center gap-1 mt-1 animate-fade-in">
-                        <AlertCircle className="w-3 h-3 shrink-0" /> {shelterFieldErrors.longitude}
-                      </p>
-                    )}
+                {/* Reusable Indian Address Component */}
+                <AddressForm
+                  value={{
+                    address: sAddress,
+                    pincode: sPincode,
+                    state: sState,
+                    district: sDistrict,
+                    city: sCity,
+                  }}
+                  onChange={handleShelterAddressChange}
+                  onBlur={handleShelterAddressBlur}
+                  errors={shelterFieldErrors}
+                  touched={shelterTouched}
+                  disabled={shelterSubmitting}
+                  showAddressLine={true}
+                />
+
+                <div className="border-t border-slate-100 pt-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                      <Navigation className="w-3.5 h-3.5 text-[#237737]" /> GPS Coordinates
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={handleUseMyLocation}
+                      disabled={sLocating}
+                      className="px-3.5 py-1.5 bg-[#237737]/10 hover:bg-[#237737]/20 text-[#237737] rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Navigation className={`w-3.5 h-3.5 ${sLocating ? 'animate-spin' : ''}`} />
+                      {sLocating ? 'Detecting…' : 'Use My Location'}
+                    </button>
                   </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Latitude */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-600">
+                        Latitude (-90 to +90) <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={sLatitude}
+                        onChange={(e) => handleShelterFieldChange('latitude', e.target.value, setSLatitude)}
+                        onBlur={(e) => handleShelterFieldBlur('latitude', e.target.value)}
+                        placeholder="e.g. 9.931233"
+                        required
+                        className={`w-full px-4 py-2.5 bg-[#F8FAF9] border rounded-xl focus:outline-none text-sm font-semibold transition ${
+                          shelterTouched.latitude && shelterFieldErrors.latitude
+                            ? 'border-rose-300 focus:border-rose-500 bg-rose-50/20'
+                            : 'border-slate-200 focus:border-[#237737]'
+                        }`}
+                      />
+                      {shelterTouched.latitude && shelterFieldErrors.latitude && (
+                        <p className="text-[11px] text-rose-500 font-bold flex items-center gap-1 mt-1 animate-fade-in">
+                          <AlertCircle className="w-3 h-3 shrink-0" /> {shelterFieldErrors.latitude}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Longitude */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-600">
+                        Longitude (-180 to +180) <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={sLongitude}
+                        onChange={(e) => handleShelterFieldChange('longitude', e.target.value, setSLongitude)}
+                        onBlur={(e) => handleShelterFieldBlur('longitude', e.target.value)}
+                        placeholder="e.g. 76.267303"
+                        required
+                        className={`w-full px-4 py-2.5 bg-[#F8FAF9] border rounded-xl focus:outline-none text-sm font-semibold transition ${
+                          shelterTouched.longitude && shelterFieldErrors.longitude
+                            ? 'border-rose-300 focus:border-rose-500 bg-rose-50/20'
+                            : 'border-slate-200 focus:border-[#237737]'
+                        }`}
+                      />
+                      {shelterTouched.longitude && shelterFieldErrors.longitude && (
+                        <p className="text-[11px] text-rose-500 font-bold flex items-center gap-1 mt-1 animate-fade-in">
+                          <AlertCircle className="w-3 h-3 shrink-0" /> {shelterFieldErrors.longitude}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-semibold">
+                    Click "Use My Location" to auto-detect coordinates, or enter them manually from Google Maps.
+                  </p>
                 </div>
-                <p className="text-[11px] text-slate-400 font-semibold">
-                  Click "Use My Location" to auto-detect coordinates, or enter them manually from Google Maps.
-                </p>
               </div>
 
               {/* Section 3: Capacity */}
@@ -1323,16 +1430,6 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
                           : app.applicationStatus || app.status}
                       </span>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedUserAppForModal(app);
-                          setShowUserAppDetailsModal(true);
-                        }}
-                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1"
-                      >
-                        <Eye className="w-3.5 h-3.5" /> Details
-                      </button>
                     </div>
                   </div>
 
@@ -1532,6 +1629,19 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
                     </div>
                   </div>
 
+                  {/* Shelter Physical Address Display */}
+                  {(app.address || app.city || app.district || app.state || app.pincode) && (
+                    <div className="p-3 bg-[#F8FAF9] rounded-xl flex items-start gap-2.5 text-xs">
+                      <MapPin className="w-4 h-4 text-[#237737] shrink-0 mt-0.5" />
+                      <div>
+                        <div className="text-slate-400 font-bold text-[10px] uppercase">Shelter Physical Address</div>
+                        <div className="text-slate-800 font-semibold mt-0.5">
+                          {[app.address, app.city, app.district, app.state, app.pincode ? `PIN: ${app.pincode}` : ''].filter(Boolean).join(', ')}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Footer Info */}
                   <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                     <div className="text-slate-600 font-semibold">
@@ -1717,6 +1827,10 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
                 Submitted Facility Information
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <span className="text-slate-400 font-bold block text-[10px] uppercase">Shelter Manager</span>
+                  <p className="font-extrabold text-[#237737] mt-0.5">{selectedUserAppForModal.applicantName || selectedUserAppForModal.applicantId?.fullName || user?.fullName || 'Shelter Manager'}</p>
+                </div>
                 <div>
                   <span className="text-slate-400 font-bold block text-[10px] uppercase">Shelter Email</span>
                   <p className="font-extrabold text-slate-800 mt-0.5">{selectedUserAppForModal.shelterEmail}</p>
@@ -1744,6 +1858,30 @@ const ShelterRegister = ({ onApplicationSubmitted, onRequireProfile, onNavigateT
                     {selectedUserAppForModal.latitude?.toFixed(5)}, {selectedUserAppForModal.longitude?.toFixed(5)}
                   </p>
                 </div>
+                {(selectedUserAppForModal.address ||
+                  selectedUserAppForModal.city ||
+                  selectedUserAppForModal.district ||
+                  selectedUserAppForModal.state ||
+                  selectedUserAppForModal.pincode) && (
+                  <div className="sm:col-span-2">
+                    <span className="text-slate-400 font-bold block text-[10px] uppercase">
+                      Shelter Physical Address
+                    </span>
+                    <p className="font-extrabold text-slate-800 mt-0.5">
+                      {[
+                        selectedUserAppForModal.address,
+                        selectedUserAppForModal.city,
+                        selectedUserAppForModal.district,
+                        selectedUserAppForModal.state,
+                        selectedUserAppForModal.pincode
+                          ? `PIN: ${selectedUserAppForModal.pincode}`
+                          : '',
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Review Note if any and no site report */}

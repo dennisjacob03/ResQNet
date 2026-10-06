@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import AuthLayout from '../components/AuthLayout';
-import { AlertCircle, CheckCircle2, XCircle, ArrowLeft, MailCheck, Smartphone, ShieldCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, XCircle, ArrowLeft, MailCheck, Smartphone, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { registerSchema, validateField } from '../../../utils/validationSchemas';
 
 const RegisterPage = () => {
@@ -48,6 +48,9 @@ const RegisterPage = () => {
   }, [otpTimer, step]);
 
   // Password requirement live checks
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const passwordCriteria = {
     length: formData.password.length >= 8,
     uppercase: /[A-Z]/.test(formData.password),
@@ -444,16 +447,25 @@ const RegisterPage = () => {
               </label>
               <div className="relative">
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
                   onBlur={handleBlur}
                   placeholder="••••••••"
-                  className={getInputClass('password')}
+                  className={`${getInputClass('password')} pr-9`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  tabIndex={-1}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
                 {touched.password && !errors.password && formData.password && (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 absolute right-3 top-2.5" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 absolute right-8 top-2.5" />
                 )}
               </div>
               {touched.password && errors.password && (
@@ -471,16 +483,25 @@ const RegisterPage = () => {
               </label>
               <div className="relative">
                 <input
-                  type="password"
+                  type={showConfirmPassword ? 'text' : 'password'}
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   onBlur={handleBlur}
                   placeholder="••••••••"
-                  className={getInputClass('confirmPassword')}
+                  className={`${getInputClass('confirmPassword')} pr-9`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  tabIndex={-1}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                  aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
                 {touched.confirmPassword && !errors.confirmPassword && formData.confirmPassword && (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 absolute right-3 top-2.5" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 absolute right-8 top-2.5" />
                 )}
               </div>
               {touched.confirmPassword && errors.confirmPassword && (

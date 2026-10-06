@@ -67,12 +67,21 @@ const getAllShelters = async (req, res) => {
         if (app.userId) {
           queryConditions.push({ userId: app.userId });
         }
+        if (app.applicantId) {
+          queryConditions.push({ managerId: app.applicantId });
+        }
         if (queryConditions.length > 0) {
           const existing = await Shelter.findOne({ $or: queryConditions });
           if (!existing) {
             await Shelter.create({
               shelterApplicationId: app.shelterApplicationId,
-              userId: app.userId,
+              userId: app.userId || null,
+              managerId: app.applicantId || null,
+              address: app.address || '',
+              city: app.city || '',
+              district: app.district || '',
+              state: app.state || '',
+              pincode: app.pincode || '',
               registrationType: app.registrationType || 'STATE_TRUST_SOCIETY',
               registrationNumber: app.registrationNumber || '',
               shelterName: app.shelterName || 'Approved Shelter',
@@ -86,6 +95,9 @@ const getAllShelters = async (req, res) => {
               shelterStatus: 'UNDER_MAINTENANCE',
               status: 'Active',
             });
+          } else if (!existing.managerId && app.applicantId) {
+            existing.managerId = app.applicantId;
+            await existing.save();
           }
         }
       }
@@ -126,7 +138,8 @@ const getAllShelters = async (req, res) => {
 
     const shelters = await Shelter.find(filter)
       .sort({ createdAt: -1 })
-      .populate('userId', 'fullName email phoneNumber city state');
+      .populate('userId', 'fullName email phoneNumber city state')
+      .populate('managerId', 'fullName email phoneNumber city state');
 
     res.status(200).json({
       success: true,
@@ -148,14 +161,15 @@ const getShelterById = async (req, res) => {
     let shelter;
 
     if (id.match(/^[0-9a-fA-F]{24}$/)) {
-      shelter = await Shelter.findById(id).populate(
-        'userId',
-        'fullName email phoneNumber city state'
-      );
+      shelter = await Shelter.findById(id)
+        .populate('userId', 'fullName email phoneNumber city state')
+        .populate('managerId', 'fullName email phoneNumber city state');
     } else {
       shelter = await Shelter.findOne({
         shelterNumber: id.toUpperCase(),
-      }).populate('userId', 'fullName email phoneNumber city state');
+      })
+        .populate('userId', 'fullName email phoneNumber city state')
+        .populate('managerId', 'fullName email phoneNumber city state');
     }
 
     if (!shelter || shelter.isDeleted) {
@@ -192,6 +206,7 @@ const createShelter = async (req, res) => {
       currentStatus = 'UNDER_MAINTENANCE',
       status = 'Active',
       userId,
+      managerId,
     } = req.body;
 
     if (!shelterName || !shelterEmail || !shelterPhoneNumber || latitude === undefined || longitude === undefined) {
@@ -217,12 +232,12 @@ const createShelter = async (req, res) => {
       shelterStatus: initialShelterStatus,
       status: ['Active', 'Inactive'].includes(status) ? status : 'Active',
       userId: userId || req.user._id,
+      managerId: managerId || req.user?._id || null,
     });
 
-    const populated = await Shelter.findById(shelter._id).populate(
-      'userId',
-      'fullName email phoneNumber city state'
-    );
+    const populated = await Shelter.findById(shelter._id)
+      .populate('userId', 'fullName email phoneNumber city state')
+      .populate('managerId', 'fullName email phoneNumber city state');
 
     res.status(201).json({
       success: true,
@@ -251,6 +266,11 @@ const updateShelter = async (req, res) => {
       'shelterName',
       'shelterEmail',
       'shelterPhoneNumber',
+      'address',
+      'city',
+      'district',
+      'state',
+      'pincode',
       'registrationType',
       'registrationNumber',
       'latitude',
@@ -262,6 +282,7 @@ const updateShelter = async (req, res) => {
       'currentStatus',
       'status',
       'userId',
+      'managerId',
     ];
 
     allowedUpdates.forEach((field) => {
@@ -278,10 +299,9 @@ const updateShelter = async (req, res) => {
 
     await shelter.save();
 
-    const updated = await Shelter.findById(shelter._id).populate(
-      'userId',
-      'fullName email phoneNumber city state'
-    );
+    const updated = await Shelter.findById(shelter._id)
+      .populate('userId', 'fullName email phoneNumber city state')
+      .populate('managerId', 'fullName email phoneNumber city state');
 
     res.status(200).json({
       success: true,
@@ -334,10 +354,13 @@ const getMyShelter = async (req, res) => {
     let shelter = await Shelter.findOne({
       $or: [
         { userId },
+        { managerId: userId },
         { shelterEmail: userEmail },
       ],
       isDeleted: { $ne: true },
-    }).populate('userId', 'fullName email phoneNumber city state');
+    })
+      .populate('userId', 'fullName email phoneNumber city state')
+      .populate('managerId', 'fullName email phoneNumber city state');
 
     if (!shelter) {
       return res.status(404).json({

@@ -1,6 +1,11 @@
 const VolunteerApplication = require('./volunteerApplicationModel');
 const User = require('../users/userModel');
-const { sendVolunteerApprovalEmail } = require('../../utils/emailService');
+const {
+  sendVolunteerApprovalEmail,
+  sendVolunteerApplicationSubmittedEmail,
+  sendVolunteerVisitScheduledEmail,
+  sendVolunteerRejectedEmail,
+} = require('../../utils/emailService');
 const { createNotificationHelper } = require('../notifications/notificationController');
 
 // Helper to broadcast a notification to all Admin users
@@ -120,6 +125,14 @@ const submitVolunteerApplication = async (req, res) => {
         applicationStatus: 'Pending',
       },
     }).catch((err) => console.error('Failed to notify applicant:', err));
+
+    // Send confirmation email to applicant
+    sendVolunteerApplicationSubmittedEmail(application.email, {
+      applicantName: application.fullName,
+      district: application.district,
+      interests: application.interests,
+      applicationId: application.volunteerApplicationId,
+    }).catch((err) => console.warn('Failed to send volunteer submission email:', err.message));
 
     // Notify admins
     notifyAdminsHelper({
@@ -263,6 +276,18 @@ const scheduleVolunteerVisit = async (req, res) => {
           visitCoordinator: application.visitCoordinator,
         },
       }).catch((err) => console.error('Failed to notify volunteer of scheduled visit:', err));
+    }
+
+    // Send email notification to volunteer
+    if (application.email) {
+      sendVolunteerVisitScheduledEmail(application.email, {
+        applicantName: application.fullName,
+        applicationId: application.volunteerApplicationId,
+        visitDate: application.visitScheduleDate,
+        valuationPeriod: application.visitValuationPeriod || 'Standard Session',
+        coordinator: application.visitCoordinator || 'Field Coordinator',
+        notes: application.visitNotes || '',
+      }).catch((err) => console.warn('Failed to send volunteer visit email:', err.message));
     }
 
     notifyAdminsHelper({
@@ -415,6 +440,15 @@ const submitVolunteerVisitReport = async (req, res) => {
           visitReport: application.visitReport,
         },
       }).catch((err) => console.error('Failed to notify applicant of rejection:', err));
+
+      // Dispatch rejection email
+      if (application.email) {
+        sendVolunteerRejectedEmail(application.email, {
+          applicantName: application.fullName,
+          applicationId: application.volunteerApplicationId,
+          reason: application.visitReport || 'Application criteria not fulfilled at this time.',
+        }).catch((err) => console.warn('Failed to send volunteer rejection email:', err.message));
+      }
 
       // Broadcast to Admins
       notifyAdminsHelper({

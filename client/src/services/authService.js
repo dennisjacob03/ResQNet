@@ -66,4 +66,9 @@ export const updateProfileApi = async (profileData) => {
   return response.data;
 };
 
+export const checkEmailApi = async (email) => {
+  const response = await authService.get(`/check-email?email=${encodeURIComponent(email)}`);
+  return response.data;
+};
+
 export default authService;

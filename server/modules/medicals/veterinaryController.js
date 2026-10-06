@@ -1,24 +1,26 @@
-const mongoose = require('mongoose');
-const VetStaffApplication = require('../shelters/vetStaffApplicationModel');
-const VetStaff = require('../shelters/vetStaffModel');
-const Shelter = require('../shelters/shelterModel');
-const User = require('../users/userModel');
-const Animal = require('../animals/animalModel');
-const MedicalRecord = require('./medicalRecordModel');
-const Vaccination = require('./vaccinationModel');
-const MedicalReminder = require('./medicalReminderModel');
-const MedicineStock = require('./medicineStockModel');
-const Notification = require('../notifications/notificationModel');
+const mongoose = require("mongoose");
+const VetStaffApplication = require("../shelters/vetStaffApplicationModel");
+const VetStaff = require("../shelters/vetStaffModel");
+const Shelter = require("../shelters/shelterModel");
+const User = require("../users/userModel");
+const Animal = require("../animals/animalModel");
+const MedicalRecord = require("./medicalRecordModel");
+const Vaccination = require("./vaccinationModel");
+const MedicalReminder = require("./medicalReminderModel");
+const MedicineStock = require("./medicineStockModel");
+const Notification = require("../notifications/notificationModel");
 const {
   sendVetInterviewScheduledEmail,
   sendVetStaffApprovalEmail,
   sendShelterAnimalMedicalReminderEmail,
-} = require('../../utils/emailService');
+  sendVetStaffApplicationSubmittedEmail,
+  sendVetStaffRejectedEmail,
+} = require("../../utils/emailService");
 
 // Helper to resolve the authenticated user's shelter
 const resolveUserShelter = async (user) => {
   const userId = user._id;
-  const userEmail = user.email ? user.email.toLowerCase().trim() : '';
+  const userEmail = user.email ? user.email.toLowerCase().trim() : "";
 
   const shelter = await Shelter.findOne({
     $or: [{ userId }, { shelterEmail: userEmail }],
@@ -30,8 +32,8 @@ const resolveUserShelter = async (user) => {
 
 // Helper to generate a secure temporary password meeting complexity criteria
 const generateTemporaryPassword = () => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
-  let pass = 'Vet@';
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%";
+  let pass = "Vet@";
   for (let i = 0; i < 6; i++) {
     pass += chars.charAt(Math.floor(Math.random() * chars.length));
   }
@@ -40,13 +42,10 @@ const generateTemporaryPassword = () => {
 
 // Helper to resolve assigned shelter for a veterinary staff member
 const resolveVetStaffShelter = async (user) => {
-  const userEmail = user.email ? user.email.toLowerCase().trim() : '';
+  const userEmail = user.email ? user.email.toLowerCase().trim() : "";
   const vetStaff = await VetStaff.findOne({
-    $or: [
-      { userId: user._id },
-      ...(userEmail ? [{ email: userEmail }] : []),
-    ],
-    status: 'Active',
+    $or: [{ userId: user._id }, ...(userEmail ? [{ email: userEmail }] : [])],
+    status: "Active",
   });
 
   if (!vetStaff) return null;
@@ -66,36 +65,76 @@ const submitVetStaffApplication = async (req, res) => {
       fullName,
       email,
       phone,
-      password = '',
+      applicantEmail = req.user.email,
+      isEmailVerified = false,
+      isPhoneVerified = false,
       district,
       city,
-      position = 'Veterinary Doctor',
+      address = "",
+      pincode = "",
+      state = "",
+      location = "",
+      position = "Veterinary Doctor",
       councilRegistrationNumber,
-      qualification = 'BVSc & AH',
-      specialization = 'General Canine & Feline Medicine',
+      qualification = "BVSc & AH",
+      specialization = "General Canine & Feline Medicine",
       experienceYears = 0,
       targetShelterId,
-      resume = '',
+      resume = "",
     } = req.body;
+
+    if (!isEmailVerified || !isPhoneVerified) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Email and phone verification are required before submitting the veterinary staff application.",
+      });
+    }
 
     if (!fullName || !email || !phone || !councilRegistrationNumber) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide full name, email, phone, and veterinary council registration number.',
+        message:
+          "Please provide full name, email, phone, and veterinary council registration number.",
       });
     }
 
-    if (password && password.trim().length > 0 && password.trim().length < 6) {
+    const officialEmail = email.trim().toLowerCase();
+    if (officialEmail === req.user.email.toLowerCase().trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters long.',
+        message:
+          "Official veterinary email must be different from your profile email.",
+      });
+    }
+    if (await User.findOne({ email: officialEmail })) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "An account with the official veterinary email already exists.",
+      });
+    }
+    if (
+      !/^\d{6}$/.test(String(pincode).trim()) ||
+      !state ||
+      !district ||
+      !city
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Please provide a valid workplace PIN code, state, district, and city.",
       });
     }
 
-    let targetShelterName = 'All Shelters (Open)';
+    let targetShelterName = "All Shelters (Open)";
     let resolvedTargetShelterId = null;
 
-    if (targetShelterId && targetShelterId !== 'all' && mongoose.Types.ObjectId.isValid(targetShelterId)) {
+    if (
+      targetShelterId &&
+      targetShelterId !== "all" &&
+      mongoose.Types.ObjectId.isValid(targetShelterId)
+    ) {
       const shelter = await Shelter.findById(targetShelterId);
       if (shelter) {
         resolvedTargetShelterId = shelter._id;
@@ -106,11 +145,15 @@ const submitVetStaffApplication = async (req, res) => {
     const application = await VetStaffApplication.create({
       userId: req.user._id,
       fullName: fullName.trim(),
-      email: email.trim().toLowerCase(),
+      email: officialEmail,
+      applicantEmail: applicantEmail.trim().toLowerCase(),
       phone: phone.trim(),
-      password: password ? password.trim() : '',
-      district: district ? district.trim() : '',
-      city: city ? city.trim() : '',
+      address: address.trim(),
+      pincode: pincode.trim(),
+      state: state.trim(),
+      district: district ? district.trim() : "",
+      city: city ? city.trim() : "",
+      location: location.trim(),
       position,
       councilRegistrationNumber: councilRegistrationNumber.trim().toUpperCase(),
       qualification: qualification.trim(),
@@ -119,17 +162,22 @@ const submitVetStaffApplication = async (req, res) => {
       targetShelterId: resolvedTargetShelterId,
       targetShelterName,
       resume,
-      status: 'Pending',
+      isEmailVerified: true,
+      isPhoneVerified: true,
+      status: "Pending",
     });
 
     // In-app confirmation for applicant
     await Notification.create({
       userId: req.user._id,
-      title: 'Veterinary Staff Application Submitted',
+      title: "Veterinary Staff Application Submitted",
       message: `Your veterinary application [${application.vetStaffApplicationId}] has been submitted to ${targetShelterName}. You will be notified when an interview is scheduled.`,
-      type: 'Veterinary',
-      priority: 'Medium',
-      metadata: { applicationId: application._id, vetStaffApplicationId: application.vetStaffApplicationId },
+      type: "Veterinary",
+      priority: "Medium",
+      metadata: {
+        applicationId: application._id,
+        vetStaffApplicationId: application.vetStaffApplicationId,
+      },
     });
 
     // If targeted to a specific shelter, alert the shelter manager
@@ -138,23 +186,74 @@ const submitVetStaffApplication = async (req, res) => {
       if (targetShelter && targetShelter.userId) {
         await Notification.create({
           userId: targetShelter.userId,
-          title: 'New Veterinary Staff Application',
+          title: "New Veterinary Staff Application",
           message: `${fullName} (${position}, Reg: ${councilRegistrationNumber}) submitted an application to join your shelter veterinary staff.`,
-          type: 'Veterinary',
-          priority: 'High',
-          metadata: { applicationId: application._id, vetStaffApplicationId: application.vetStaffApplicationId },
+          type: "Veterinary",
+          priority: "High",
+          metadata: {
+            applicationId: application._id,
+            vetStaffApplicationId: application.vetStaffApplicationId,
+          },
         });
       }
     }
 
+    // Send confirmation email to both the official and original applicant addresses.
+    const submissionEmail = {
+      applicantName: application.fullName,
+      position: application.position,
+      councilNumber: application.councilRegistrationNumber,
+      targetShelterName,
+      applicationId: application.vetStaffApplicationId,
+    };
+    Promise.allSettled([
+      sendVetStaffApplicationSubmittedEmail(application.email, submissionEmail),
+      sendVetStaffApplicationSubmittedEmail(
+        application.applicantEmail,
+        submissionEmail,
+      ),
+    ]).catch((err) =>
+      console.warn(
+        "Failed to send vet staff application submission email:",
+        err.message,
+      ),
+    );
+
     res.status(201).json({
       success: true,
-      message: 'Veterinary staff application submitted successfully',
+      message: "Veterinary staff application submitted successfully",
       application,
     });
   } catch (error) {
-    console.error('Submit Vet Staff Application Error:', error.message);
+    console.error("Submit Vet Staff Application Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const checkVetStaffEmail = async (req, res) => {
+  try {
+    const email = String(req.query.email || "")
+      .trim()
+      .toLowerCase();
+    if (!email)
+      return res
+        .status(400)
+        .json({ success: false, message: "Email is required." });
+    if (email === req.user.email.toLowerCase().trim()) {
+      return res.status(200).json({
+        success: true,
+        available: false,
+        message: "Use an email different from your profile email.",
+      });
+    }
+    const exists = await User.exists({ email });
+    return res.status(200).json({
+      success: true,
+      available: !exists,
+      message: exists ? "An account with this email already exists." : "",
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -165,16 +264,23 @@ const submitVetStaffApplication = async (req, res) => {
  */
 const getMyVetStaffApplication = async (req, res) => {
   try {
-    const userEmail = req.user.email ? req.user.email.toLowerCase().trim() : '';
+    const userEmail = req.user.email ? req.user.email.toLowerCase().trim() : "";
     const application = await VetStaffApplication.findOne({
       $or: [
         { userId: req.user._id },
+        { applicantEmail: userEmail },
         ...(userEmail ? [{ email: userEmail }] : []),
       ],
     })
       .sort({ createdAt: -1 })
-      .populate('targetShelterId', 'shelterName shelterEmail shelterPhoneNumber shelterNumber')
-      .populate('assignedShelterId', 'shelterName shelterEmail shelterPhoneNumber shelterNumber');
+      .populate(
+        "targetShelterId",
+        "shelterName shelterEmail shelterPhoneNumber shelterNumber",
+      )
+      .populate(
+        "assignedShelterId",
+        "shelterName shelterEmail shelterPhoneNumber shelterNumber",
+      );
 
     // Also check if user has active VetStaff record
     const vetStaff = await VetStaff.findOne({
@@ -182,9 +288,11 @@ const getMyVetStaffApplication = async (req, res) => {
         { userId: req.user._id },
         ...(userEmail ? [{ email: userEmail }] : []),
       ],
-      status: 'Active',
-    })
-      .populate('shelterId', 'shelterName shelterEmail shelterPhoneNumber shelterNumber');
+      status: "Active",
+    }).populate(
+      "shelterId",
+      "shelterName shelterEmail shelterPhoneNumber shelterNumber",
+    );
 
     res.status(200).json({
       success: true,
@@ -192,7 +300,7 @@ const getMyVetStaffApplication = async (req, res) => {
       vetStaff,
     });
   } catch (error) {
-    console.error('Get My Vet Staff Application Error:', error.message);
+    console.error("Get My Vet Staff Application Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -208,7 +316,7 @@ const getShelterVetApplications = async (req, res) => {
     if (!shelter) {
       return res.status(404).json({
         success: false,
-        message: 'No registered shelter found associated with this account.',
+        message: "No registered shelter found associated with this account.",
       });
     }
 
@@ -221,7 +329,7 @@ const getShelterVetApplications = async (req, res) => {
       ],
     })
       .sort({ createdAt: -1 })
-      .populate('userId', 'fullName email phoneNumber city');
+      .populate("userId", "fullName email phoneNumber city");
 
     res.status(200).json({
       success: true,
@@ -233,7 +341,7 @@ const getShelterVetApplications = async (req, res) => {
       applications,
     });
   } catch (error) {
-    console.error('Get Shelter Vet Applications Error:', error.message);
+    console.error("Get Shelter Vet Applications Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -248,16 +356,16 @@ const scheduleVetInterview = async (req, res) => {
     const { id } = req.params;
     const {
       interviewScheduleDate,
-      interviewTimeSlot = '10:00 AM - 12:00 PM',
-      interviewLocation = '',
-      interviewInterviewer = '',
-      interviewNotes = '',
+      interviewTimeSlot = "10:00 AM - 12:00 PM",
+      interviewLocation = "",
+      interviewInterviewer = "",
+      interviewNotes = "",
     } = req.body;
 
     if (!interviewScheduleDate) {
       return res.status(400).json({
         success: false,
-        message: 'Please specify the interview schedule date.',
+        message: "Please specify the interview schedule date.",
       });
     }
 
@@ -265,7 +373,7 @@ const scheduleVetInterview = async (req, res) => {
     if (!shelter) {
       return res.status(404).json({
         success: false,
-        message: 'No registered shelter found associated with this account.',
+        message: "No registered shelter found associated with this account.",
       });
     }
 
@@ -277,17 +385,19 @@ const scheduleVetInterview = async (req, res) => {
     if (!application) {
       return res.status(404).json({
         success: false,
-        message: 'Veterinary staff application not found.',
+        message: "Veterinary staff application not found.",
       });
     }
 
-    application.status = 'Interview Scheduled';
+    application.status = "Interview Scheduled";
     application.interviewScheduleDate = new Date(interviewScheduleDate);
     application.interviewTimeSlot = interviewTimeSlot;
     application.interviewLocation =
       interviewLocation || `${shelter.shelterName} Veterinary Wing`;
     application.interviewInterviewer =
-      interviewInterviewer || req.user.fullName || 'Shelter Veterinary Director';
+      interviewInterviewer ||
+      req.user.fullName ||
+      "Shelter Veterinary Director";
     application.interviewNotes = interviewNotes;
 
     // If application was open, anchor target shelter now to the scheduling shelter
@@ -301,12 +411,12 @@ const scheduleVetInterview = async (req, res) => {
     // In-app notification to applicant
     await Notification.create({
       userId: application.userId,
-      title: 'Veterinary Clinical Interview Scheduled! 🩺',
+      title: "Veterinary Clinical Interview Scheduled! 🩺",
       message: `Interview scheduled at ${shelter.shelterName} on ${new Date(
-        interviewScheduleDate
+        interviewScheduleDate,
       ).toLocaleDateString()} (${interviewTimeSlot}) at ${application.interviewLocation}.`,
-      type: 'Veterinary',
-      priority: 'High',
+      type: "Veterinary",
+      priority: "High",
       metadata: {
         applicationId: application._id,
         shelterName: shelter.shelterName,
@@ -315,9 +425,9 @@ const scheduleVetInterview = async (req, res) => {
       },
     });
 
-    // Send email notification to applicant
+    // Send email notification to both the official and original applicant addresses.
     try {
-      await sendVetInterviewScheduledEmail(application.email, {
+      const interviewEmail = {
         applicantName: application.fullName,
         applicationId: application.vetStaffApplicationId,
         shelterName: shelter.shelterName,
@@ -326,9 +436,19 @@ const scheduleVetInterview = async (req, res) => {
         location: application.interviewLocation,
         interviewer: application.interviewInterviewer,
         notes: application.interviewNotes,
-      });
+      };
+      await Promise.allSettled([
+        sendVetInterviewScheduledEmail(application.email, interviewEmail),
+        sendVetInterviewScheduledEmail(
+          application.applicantEmail,
+          interviewEmail,
+        ),
+      ]);
     } catch (emailErr) {
-      console.warn('Failed to send interview scheduled email:', emailErr.message);
+      console.warn(
+        "Failed to send interview scheduled email:",
+        emailErr.message,
+      );
     }
 
     res.status(200).json({
@@ -337,7 +457,7 @@ const scheduleVetInterview = async (req, res) => {
       application,
     });
   } catch (error) {
-    console.error('Schedule Vet Interview Error:', error.message);
+    console.error("Schedule Vet Interview Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -352,16 +472,16 @@ const submitVetInterviewReport = async (req, res) => {
     const { id } = req.params;
     const {
       interviewChecks = {},
-      interviewReport = '',
-      decision = 'Approved',
-      rejectionReason = '',
+      interviewReport = "",
+      decision = "Approved",
+      rejectionReason = "",
     } = req.body;
 
     const shelter = await resolveUserShelter(req.user);
     if (!shelter) {
       return res.status(404).json({
         success: false,
-        message: 'No registered shelter found associated with this account.',
+        message: "No registered shelter found associated with this account.",
       });
     }
 
@@ -373,14 +493,15 @@ const submitVetInterviewReport = async (req, res) => {
     if (!application) {
       return res.status(404).json({
         success: false,
-        message: 'Veterinary staff application not found.',
+        message: "Veterinary staff application not found.",
       });
     }
 
     if (!interviewReport.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide detailed clinical evaluation remarks for the interview report.',
+        message:
+          "Please provide detailed clinical evaluation remarks for the interview report.",
       });
     }
 
@@ -396,62 +517,60 @@ const submitVetInterviewReport = async (req, res) => {
 
     let vetStaff = null;
 
-    if (decision === 'Approved') {
-      application.status = 'Approved';
+    if (decision === "Approved") {
+      application.status = "Approved";
       application.assignedShelterId = shelter._id;
       application.assignedShelterName = shelter.shelterName;
 
-      const applicantEmail = application.email.toLowerCase().trim();
-      const applicantPhone = String(application.phone || '').trim();
-      let tempPassword = null;
-      let passwordToSet = application.password;
-
-      if (!passwordToSet) {
-        tempPassword = generateTemporaryPassword();
-        passwordToSet = tempPassword;
-      }
+      const vetEmail = application.email.toLowerCase().trim();
+      const applicantEmail = (application.applicantEmail || "")
+        .toLowerCase()
+        .trim();
+      const applicantPhone = String(application.phone || "").trim();
+      const tempPassword = generateTemporaryPassword();
+      const passwordToSet = tempPassword;
 
       // Check if user account already exists with this veterinary email
-      let vetUser = await User.findOne({ email: applicantEmail });
+      let vetUser = await User.findOne({ email: vetEmail });
 
       if (!vetUser) {
         // Create new user account for Veterinary Staff
         vetUser = await User.create({
           fullName: application.fullName.trim(),
-          email: applicantEmail,
+          email: vetEmail,
           phoneNumber: applicantPhone,
           password: passwordToSet,
-          role: 'Veterinary Staff',
+          role: "Veterinary Staff",
           isEmailVerified: true,
           isPhoneVerified: true,
-          status: 'Active',
+          status: "Active",
         });
       } else {
         // Update existing user with Veterinary Staff role and password
         vetUser.fullName = application.fullName.trim();
-        vetUser.role = 'Veterinary Staff';
+        vetUser.role = "Veterinary Staff";
         if (applicantPhone) vetUser.phoneNumber = applicantPhone;
         if (passwordToSet) vetUser.password = passwordToSet; // pre-save will hash
         vetUser.isEmailVerified = true;
         vetUser.isPhoneVerified = true;
-        vetUser.status = 'Active';
+        vetUser.status = "Active";
         await vetUser.save();
       }
 
       // Best-effort Firebase Auth sync
       try {
-        const admin = require('firebase-admin');
+        const admin = require("firebase-admin");
         if (admin.apps && admin.apps.length > 0) {
           const auth = admin.auth();
           try {
-            const fbUser = await auth.getUserByEmail(applicantEmail);
+            const fbUser = await auth.getUserByEmail(vetEmail);
             if (fbUser && passwordToSet) {
               await auth.updateUser(fbUser.uid, { password: passwordToSet });
             }
           } catch (fbErr) {
-            if (fbErr.code === 'auth/user-not-found' && passwordToSet) {
+            if (fbErr.code === "auth/user-not-found" && passwordToSet) {
               await auth.createUser({
-                email: applicantEmail,
+                email: vetEmail,
                 password: passwordToSet,
                 displayName: application.fullName.trim(),
               });
@@ -466,7 +585,7 @@ const submitVetInterviewReport = async (req, res) => {
       vetStaff = await VetStaff.findOne({
         $or: [
           { userId: vetUser._id, shelterId: shelter._id },
-          { email: applicantEmail, shelterId: shelter._id },
+          { email: vetEmail, shelterId: shelter._id },
         ],
       });
 
@@ -476,23 +595,29 @@ const submitVetInterviewReport = async (req, res) => {
           userId: vetUser._id,
           vetStaffApplicationId: application.vetStaffApplicationId,
           fullName: application.fullName,
-          email: applicantEmail,
+          email: vetEmail,
           phone: applicantPhone,
+          address: application.address,
+          pincode: application.pincode,
+          state: application.state,
+          district: application.district,
+          city: application.city,
+          location: application.location,
           councilRegistrationNumber: application.councilRegistrationNumber,
           qualification: application.qualification,
           specialization: application.specialization,
           position: application.position,
           experience: application.experienceYears,
           joiningDate: new Date(),
-          status: 'Active',
-          availability: 'Available',
+          status: "Active",
+          availability: "Available",
         });
         await vetStaff.save();
       } else {
         vetStaff.userId = vetUser._id;
-        vetStaff.email = applicantEmail;
+        vetStaff.email = vetEmail;
         vetStaff.phone = applicantPhone;
-        vetStaff.status = 'Active';
+        vetStaff.status = "Active";
         await vetStaff.save();
       }
 
@@ -505,10 +630,10 @@ const submitVetInterviewReport = async (req, res) => {
       // Send congratulations notification to vetUser
       await Notification.create({
         userId: vetUser._id,
-        title: '🎉 Congratulations! Appointed as Veterinary Staff',
+        title: "🎉 Congratulations! Appointed as Veterinary Staff",
         message: `Your clinical evaluation report was approved! You are officially assigned to ${shelter.shelterName} as ${application.position} [${vetStaff.vetStaffId}]. You now have full access to the Veterinary Dashboard.`,
-        type: 'Veterinary',
-        priority: 'Emergency',
+        type: "Veterinary",
+        priority: "Emergency",
         metadata: {
           vetStaffId: vetStaff.vetStaffId,
           shelterName: shelter.shelterName,
@@ -517,13 +642,16 @@ const submitVetInterviewReport = async (req, res) => {
       });
 
       // If original applicant user is different, notify them too
-      if (originalApplicantId && String(originalApplicantId) !== String(vetUser._id)) {
+      if (
+        originalApplicantId &&
+        String(originalApplicantId) !== String(vetUser._id)
+      ) {
         await Notification.create({
           userId: originalApplicantId,
-          title: '🎉 Veterinary Application Approved!',
-          message: `Your veterinary application for ${application.fullName} has been approved at ${shelter.shelterName}! A Veterinary Staff account (${applicantEmail}) is activated.`,
-          type: 'Veterinary',
-          priority: 'High',
+          title: "🎉 Veterinary Application Approved!",
+          message: `Your veterinary application for ${application.fullName} has been approved at ${shelter.shelterName}! A Veterinary Staff account (${vetEmail}) is activated.`,
+          type: "Veterinary",
+          priority: "High",
           metadata: {
             vetStaffId: vetStaff.vetStaffId,
             shelterName: shelter.shelterName,
@@ -534,20 +662,37 @@ const submitVetInterviewReport = async (req, res) => {
 
       // Send approval appointment email with login credentials
       try {
-        await sendVetStaffApprovalEmail(application.email, {
+        await sendVetStaffApprovalEmail(vetEmail, {
           staffName: application.fullName,
           vetStaffId: vetStaff.vetStaffId,
           vetStaffNumber: vetStaff.vetStaffNumber,
           position: application.position,
           shelterName: shelter.shelterName,
           councilNumber: application.councilRegistrationNumber,
-          loginEmail: applicantEmail,
-          hasCustomPassword: Boolean(application.password),
-          tempPassword: tempPassword || '',
-          loginUrl: `${process.env.CLIENT_URL || 'http://localhost:5173'}/login`,
+          loginEmail: vetEmail,
+          hasCustomPassword: false,
+          tempPassword,
+          loginUrl: `${process.env.CLIENT_URL || "http://localhost:5173"}/login`,
         });
+        if (applicantEmail && applicantEmail !== vetEmail) {
+          await sendVetStaffApprovalEmail(applicantEmail, {
+            staffName: application.fullName,
+            vetStaffId: vetStaff.vetStaffId,
+            vetStaffNumber: vetStaff.vetStaffNumber,
+            position: application.position,
+            shelterName: shelter.shelterName,
+            councilNumber: application.councilRegistrationNumber,
+            loginEmail: vetEmail,
+            hasCustomPassword: false,
+            tempPassword: "Sent to the official veterinary email address",
+            loginUrl: `${process.env.CLIENT_URL || "http://localhost:5173"}/login`,
+          });
+        }
       } catch (emailErr) {
-        console.warn('Failed to send vet staff approval email:', emailErr.message);
+        console.warn(
+          "Failed to send vet staff approval email:",
+          emailErr.message,
+        );
       }
 
       return res.status(200).json({
@@ -558,30 +703,56 @@ const submitVetInterviewReport = async (req, res) => {
       });
     } else {
       // Rejected
-      application.status = 'Rejected';
+      application.status = "Rejected";
       application.rejectionReason =
         rejectionReason ||
-        'Candidate did not fulfill clinical competency or verification criteria during shelter interview.';
+        "Candidate did not fulfill clinical competency or verification criteria during shelter interview.";
       await application.save();
 
       // Notify applicant
       await Notification.create({
         userId: application.userId,
-        title: 'Veterinary Application Decision',
+        title: "Veterinary Application Decision",
         message: `Following your clinical interview at ${shelter.shelterName}, your application was not approved at this time: ${application.rejectionReason}`,
-        type: 'Veterinary',
-        priority: 'Medium',
-        metadata: { applicationId: application._id, shelterName: shelter.shelterName },
+        type: "Veterinary",
+        priority: "Medium",
+        metadata: {
+          applicationId: application._id,
+          shelterName: shelter.shelterName,
+        },
       });
+
+      // Send rejection email to both the official and original applicant addresses.
+      if (application.email) {
+        const rejectionEmail = {
+          applicantName: application.fullName,
+          shelterName: shelter.shelterName,
+          applicationId: application.vetStaffApplicationId,
+          reason: application.rejectionReason,
+        };
+        Promise.allSettled([
+          sendVetStaffRejectedEmail(application.email, rejectionEmail),
+          application.applicantEmail &&
+            sendVetStaffRejectedEmail(
+              application.applicantEmail,
+              rejectionEmail,
+            ),
+        ]).catch((err) =>
+          console.warn(
+            "Failed to send vet staff rejection email:",
+            err.message,
+          ),
+        );
+      }
 
       return res.status(200).json({
         success: true,
-        message: 'Interview report recorded: application rejected.',
+        message: "Interview report recorded: application rejected.",
         application,
       });
     }
   } catch (error) {
-    console.error('Submit Vet Interview Report Error:', error.message);
+    console.error("Submit Vet Interview Report Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -593,19 +764,19 @@ const submitVetInterviewReport = async (req, res) => {
  */
 const getMyVetAssignment = async (req, res) => {
   try {
-    const userEmail = req.user.email ? req.user.email.toLowerCase().trim() : '';
+    const userEmail = req.user.email ? req.user.email.toLowerCase().trim() : "";
     const vetStaff = await VetStaff.findOne({
       $or: [
         { userId: req.user._id },
         ...(userEmail ? [{ email: userEmail }] : []),
       ],
-      status: 'Active',
-    }).populate('shelterId');
+      status: "Active",
+    }).populate("shelterId");
 
     if (!vetStaff) {
       return res.status(404).json({
         success: false,
-        message: 'No active veterinary staff assignment found for this user.',
+        message: "No active veterinary staff assignment found for this user.",
       });
     }
 
@@ -615,7 +786,7 @@ const getMyVetAssignment = async (req, res) => {
       shelter: vetStaff.shelterId,
     });
   } catch (error) {
-    console.error('Get My Vet Assignment Error:', error.message);
+    console.error("Get My Vet Assignment Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -631,13 +802,13 @@ const getShelterVetStaff = async (req, res) => {
     if (!shelter) {
       return res.status(404).json({
         success: false,
-        message: 'No registered shelter found associated with this account.',
+        message: "No registered shelter found associated with this account.",
       });
     }
 
     const staffMembers = await VetStaff.find({
       shelterId: shelter._id,
-      status: 'Active',
+      status: "Active",
     }).sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -649,7 +820,7 @@ const getShelterVetStaff = async (req, res) => {
       staffMembers,
     });
   } catch (error) {
-    console.error('Get Shelter Vet Staff Error:', error.message);
+    console.error("Get Shelter Vet Staff Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -665,20 +836,20 @@ const toggleMedicineStockPermission = async (req, res) => {
     if (!shelter) {
       return res.status(404).json({
         success: false,
-        message: 'No registered shelter found associated with this account.',
+        message: "No registered shelter found associated with this account.",
       });
     }
 
     const staffMember = await VetStaff.findOne({
       _id: req.params.id,
       shelterId: shelter._id,
-      status: 'Active',
+      status: "Active",
     });
 
     if (!staffMember) {
       return res.status(404).json({
         success: false,
-        message: 'Vet staff member not found or not assigned to your shelter.',
+        message: "Vet staff member not found or not assigned to your shelter.",
       });
     }
 
@@ -693,11 +864,10 @@ const toggleMedicineStockPermission = async (req, res) => {
       vetStaff: staffMember,
     });
   } catch (error) {
-    console.error('Toggle Medicine Stock Permission Error:', error.message);
+    console.error("Toggle Medicine Stock Permission Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
 
 /**
  * @desc    Get shelter animals for veterinary clinical visits & medical records
@@ -723,7 +893,7 @@ const getAssignedShelterAnimals = async (req, res) => {
     if (!shelterId) {
       return res.status(404).json({
         success: false,
-        message: 'No shelter found associated with your account.',
+        message: "No shelter found associated with your account.",
       });
     }
 
@@ -737,7 +907,7 @@ const getAssignedShelterAnimals = async (req, res) => {
       animals,
     });
   } catch (error) {
-    console.error('Get Assigned Shelter Animals Error:', error.message);
+    console.error("Get Assigned Shelter Animals Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -751,26 +921,26 @@ const createClinicalRecord = async (req, res) => {
   try {
     const {
       animalId,
-      type = 'Diagnosis',
-      report = '',
+      type = "Diagnosis",
+      report = "",
       vitals = {},
       isSurgery = false,
       surgeryDetails = {},
       nextVisitDate = null,
-      status = 'Ongoing',
+      status = "Ongoing",
     } = req.body;
 
     if (!animalId) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide animal identifier.',
+        message: "Please provide animal identifier.",
       });
     }
 
     if (!report.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Please enter clinical visit report findings / notes.',
+        message: "Please enter clinical visit report findings / notes.",
       });
     }
 
@@ -788,7 +958,7 @@ const createClinicalRecord = async (req, res) => {
     if (!animal) {
       return res.status(404).json({
         success: false,
-        message: 'Animal not found in registry.',
+        message: "Animal not found in registry.",
       });
     }
 
@@ -797,26 +967,32 @@ const createClinicalRecord = async (req, res) => {
     const record = await MedicalRecord.create({
       animalId: animal.animalId || String(animal._id),
       animalObjectId: animal._id,
-      animalName: animal.name || 'Rescued Animal',
-      species: animal.species || 'Dog',
+      animalName: animal.name || "Rescued Animal",
+      species: animal.species || "Dog",
       shelterId: effectiveShelterId,
       vetUserId: req.user._id,
-      vetName: vetStaff ? vetStaff.fullName : req.user.fullName || 'Veterinary Doctor',
+      vetName: vetStaff
+        ? vetStaff.fullName
+        : req.user.fullName || "Veterinary Doctor",
       type,
       report: report.trim(),
       reportDate: new Date(),
       vitals: {
-        temperature: vitals.temperature || '',
-        weight: vitals.weight || animal.weight || '',
-        pulse: vitals.pulse || '',
-        mucosalColor: vitals.mucosalColor || '',
+        temperature: vitals.temperature || "",
+        weight: vitals.weight || animal.weight || "",
+        pulse: vitals.pulse || "",
+        mucosalColor: vitals.mucosalColor || "",
       },
-      isSurgery: Boolean(isSurgery || type === 'Surgery'),
+      isSurgery: Boolean(isSurgery || type === "Surgery"),
       surgeryDetails: {
-        procedureName: surgeryDetails.procedureName || (type === 'Surgery' ? report.slice(0, 50) : ''),
-        anesthesia: surgeryDetails.anesthesia || '',
-        surgeon: surgeryDetails.surgeon || (vetStaff ? vetStaff.fullName : req.user.fullName),
-        postOpCare: surgeryDetails.postOpCare || '',
+        procedureName:
+          surgeryDetails.procedureName ||
+          (type === "Surgery" ? report.slice(0, 50) : ""),
+        anesthesia: surgeryDetails.anesthesia || "",
+        surgeon:
+          surgeryDetails.surgeon ||
+          (vetStaff ? vetStaff.fullName : req.user.fullName),
+        postOpCare: surgeryDetails.postOpCare || "",
       },
       nextVisitDate: nextVisitDate ? new Date(nextVisitDate) : null,
       status,
@@ -830,11 +1006,11 @@ const createClinicalRecord = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Clinical visit report logged successfully',
+      message: "Clinical visit report logged successfully",
       record,
     });
   } catch (error) {
-    console.error('Create Clinical Record Error:', error.message);
+    console.error("Create Clinical Record Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -871,7 +1047,7 @@ const getClinicalRecords = async (req, res) => {
       const targetAnimal = await Animal.findOne(
         mongoose.Types.ObjectId.isValid(animalParam)
           ? { $or: [{ _id: animalParam }, { animalId: animalParam }] }
-          : { animalId: animalParam }
+          : { animalId: animalParam },
       );
 
       if (targetAnimal) {
@@ -892,7 +1068,7 @@ const getClinicalRecords = async (req, res) => {
       records,
     });
   } catch (error) {
-    console.error('Get Clinical Records Error:', error.message);
+    console.error("Get Clinical Records Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -909,14 +1085,14 @@ const createVaccinationRecord = async (req, res) => {
       vaccineName,
       dateGiven = new Date(),
       nextDueDate = null,
-      batchNumber = '',
-      remarks = '',
+      batchNumber = "",
+      remarks = "",
     } = req.body;
 
     if (!animalId || !vaccineName) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide animal identifier and vaccine name.',
+        message: "Please provide animal identifier and vaccine name.",
       });
     }
 
@@ -928,7 +1104,7 @@ const createVaccinationRecord = async (req, res) => {
     if (!animal) {
       return res.status(404).json({
         success: false,
-        message: 'Animal not found in registry.',
+        message: "Animal not found in registry.",
       });
     }
 
@@ -941,39 +1117,41 @@ const createVaccinationRecord = async (req, res) => {
     const vaccination = await Vaccination.create({
       animalId: animal.animalId || String(animal._id),
       animalObjectId: animal._id,
-      animalName: animal.name || 'Rescued Animal',
-      species: animal.species || 'Dog',
+      animalName: animal.name || "Rescued Animal",
+      species: animal.species || "Dog",
       shelterId: effectiveShelterId,
       vaccineName: vaccineName.trim(),
       dateGiven: new Date(dateGiven),
       nextDueDate: nextDueDate ? new Date(nextDueDate) : null,
-      administeredBy: vetStaff ? vetStaff.fullName : req.user.fullName || 'Veterinarian',
+      administeredBy: vetStaff
+        ? vetStaff.fullName
+        : req.user.fullName || "Veterinarian",
       batchNumber: batchNumber.trim(),
       remarks: remarks.trim(),
     });
 
     // Update animal's vaccinations list
-    const vacDateFormatted = new Date(dateGiven).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+    const vacDateFormatted = new Date(dateGiven).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
 
     animal.vaccinations.push({
       name: vaccineName.trim(),
       date: vacDateFormatted,
-      status: 'Completed',
+      status: "Completed",
     });
     animal.vaccinationDate = vacDateFormatted;
     await animal.save();
 
     res.status(201).json({
       success: true,
-      message: 'Vaccination record logged successfully',
+      message: "Vaccination record logged successfully",
       vaccination,
     });
   } catch (error) {
-    console.error('Create Vaccination Record Error:', error.message);
+    console.error("Create Vaccination Record Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -1010,7 +1188,7 @@ const getVaccinationRecords = async (req, res) => {
       const targetAnimal = await Animal.findOne(
         mongoose.Types.ObjectId.isValid(animalParam)
           ? { $or: [{ _id: animalParam }, { animalId: animalParam }] }
-          : { animalId: animalParam }
+          : { animalId: animalParam },
       );
 
       if (targetAnimal) {
@@ -1031,7 +1209,7 @@ const getVaccinationRecords = async (req, res) => {
       vaccinations,
     });
   } catch (error) {
-    console.error('Get Vaccination Records Error:', error.message);
+    console.error("Get Vaccination Records Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -1045,16 +1223,16 @@ const sendShelterAnimalReminder = async (req, res) => {
   try {
     const {
       animalId,
-      reminderType = 'Vaccination Due',
+      reminderType = "Vaccination Due",
       dueDate = new Date(),
-      notes = '',
+      notes = "",
       vaccinationId = null,
     } = req.body;
 
     if (!animalId) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide animal identifier for reminder.',
+        message: "Please provide animal identifier for reminder.",
       });
     }
 
@@ -1066,7 +1244,7 @@ const sendShelterAnimalReminder = async (req, res) => {
     if (!animal) {
       return res.status(404).json({
         success: false,
-        message: 'Animal not found.',
+        message: "Animal not found.",
       });
     }
 
@@ -1083,40 +1261,40 @@ const sendShelterAnimalReminder = async (req, res) => {
     if (!shelter) {
       return res.status(404).json({
         success: false,
-        message: 'Shelter responsible for this animal could not be identified.',
+        message: "Shelter responsible for this animal could not be identified.",
       });
     }
 
-    const vetName = req.user.fullName || 'Attending Veterinarian';
+    const vetName = req.user.fullName || "Attending Veterinarian";
 
     // Create MedicalReminder document
     const reminder = await MedicalReminder.create({
       shelterId: shelter._id,
       animalId: animal.animalId || String(animal._id),
       animalObjectId: animal._id,
-      animalName: animal.name || 'Shelter Dog',
+      animalName: animal.name || "Shelter Dog",
       reminderType,
       dueDate: new Date(dueDate),
       notes: notes.trim(),
       sentByVetName: vetName,
       shelterNotified: true,
-      status: 'Sent',
+      status: "Sent",
     });
 
     // Send in-app notification to shelter user
     if (shelter.userId) {
-      const dueFormatted = new Date(dueDate).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
+      const dueFormatted = new Date(dueDate).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
       });
 
       await Notification.create({
         userId: shelter.userId,
         title: `⚠️ Healthcare Alert: ${animal.name} - ${reminderType}`,
-        message: `Attending vet ${vetName} has scheduled a ${reminderType} for ${animal.name} (${animal.species}) due on ${dueFormatted}. ${notes ? `Note: ${notes}` : ''}`,
-        type: 'Vaccination',
-        priority: 'High',
+        message: `Attending vet ${vetName} has scheduled a ${reminderType} for ${animal.name} (${animal.species}) due on ${dueFormatted}. ${notes ? `Note: ${notes}` : ""}`,
+        type: "Vaccination",
+        priority: "High",
         metadata: {
           animalId: animal.animalId || animal._id,
           animalName: animal.name,
@@ -1133,15 +1311,18 @@ const sendShelterAnimalReminder = async (req, res) => {
         await sendShelterAnimalMedicalReminderEmail(shelter.shelterEmail, {
           shelterName: shelter.shelterName,
           animalName: animal.name,
-          animalId: animal.animalId || 'ANM-0001',
-          species: animal.species || 'Dog',
+          animalId: animal.animalId || "ANM-0001",
+          species: animal.species || "Dog",
           reminderType,
           dueDate,
           notes,
           vetName,
         });
       } catch (emailErr) {
-        console.warn('Failed to send reminder email to shelter:', emailErr.message);
+        console.warn(
+          "Failed to send reminder email to shelter:",
+          emailErr.message,
+        );
       }
     }
 
@@ -1149,7 +1330,7 @@ const sendShelterAnimalReminder = async (req, res) => {
     if (vaccinationId) {
       await Vaccination.findOneAndUpdate(
         { $or: [{ _id: vaccinationId }, { vaccinationId }] },
-        { reminderSent: true, lastReminderDate: new Date() }
+        { reminderSent: true, lastReminderDate: new Date() },
       );
     }
 
@@ -1159,17 +1340,17 @@ const sendShelterAnimalReminder = async (req, res) => {
       reminder,
     });
   } catch (error) {
-    console.error('Send Shelter Animal Reminder Error:', error.message);
+    console.error("Send Shelter Animal Reminder Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
 // ─── Helper: resolve vet staff with medicine permission ───────────────────────
 const resolveVetStaffWithMedicinePermission = async (user) => {
-  const userEmail = user.email ? user.email.toLowerCase().trim() : '';
+  const userEmail = user.email ? user.email.toLowerCase().trim() : "";
   const vetStaff = await VetStaff.findOne({
     $or: [{ userId: user._id }, ...(userEmail ? [{ email: userEmail }] : [])],
-    status: 'Active',
+    status: "Active",
     canManageMedicineStock: true,
   });
   if (!vetStaff) return null;
@@ -1188,7 +1369,7 @@ const getMedicineStock = async (req, res) => {
     if (!resolved) {
       return res.status(403).json({
         success: false,
-        message: 'You do not have permission to manage medicine stock.',
+        message: "You do not have permission to manage medicine stock.",
       });
     }
 
@@ -1200,7 +1381,7 @@ const getMedicineStock = async (req, res) => {
 
     res.status(200).json({ success: true, items });
   } catch (error) {
-    console.error('Get Medicine Stock Error:', error.message);
+    console.error("Get Medicine Stock Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -1216,34 +1397,34 @@ const addMedicineStock = async (req, res) => {
     if (!resolved) {
       return res.status(403).json({
         success: false,
-        message: 'You do not have permission to manage medicine stock.',
+        message: "You do not have permission to manage medicine stock.",
       });
     }
 
     const { vetStaff, shelter } = resolved;
     const {
       medicineName,
-      category = 'Other',
-      unit = 'Tablet',
+      category = "Other",
+      unit = "Tablet",
       quantity,
       lowStockThreshold = 10,
       expiryDate,
-      batchNumber = '',
-      supplier = '',
-      notes = '',
+      batchNumber = "",
+      supplier = "",
+      notes = "",
     } = req.body;
 
     if (!medicineName || quantity === undefined || quantity === null) {
       return res.status(400).json({
         success: false,
-        message: 'Medicine name and quantity are required.',
+        message: "Medicine name and quantity are required.",
       });
     }
 
     if (Number(quantity) < 0) {
       return res.status(400).json({
         success: false,
-        message: 'Quantity cannot be negative.',
+        message: "Quantity cannot be negative.",
       });
     }
 
@@ -1268,7 +1449,7 @@ const addMedicineStock = async (req, res) => {
       item,
     });
   } catch (error) {
-    console.error('Add Medicine Stock Error:', error.message);
+    console.error("Add Medicine Stock Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -1284,7 +1465,7 @@ const updateMedicineStock = async (req, res) => {
     if (!resolved) {
       return res.status(403).json({
         success: false,
-        message: 'You do not have permission to manage medicine stock.',
+        message: "You do not have permission to manage medicine stock.",
       });
     }
 
@@ -1298,7 +1479,7 @@ const updateMedicineStock = async (req, res) => {
     if (!item) {
       return res.status(404).json({
         success: false,
-        message: 'Medicine stock item not found.',
+        message: "Medicine stock item not found.",
       });
     }
 
@@ -1307,7 +1488,7 @@ const updateMedicineStock = async (req, res) => {
       category,
       unit,
       quantity,
-      adjustBy,       // optional: +/- delta instead of absolute quantity
+      adjustBy, // optional: +/- delta instead of absolute quantity
       lowStockThreshold,
       expiryDate,
       batchNumber,
@@ -1318,8 +1499,10 @@ const updateMedicineStock = async (req, res) => {
     if (medicineName !== undefined) item.medicineName = medicineName.trim();
     if (category !== undefined) item.category = category;
     if (unit !== undefined) item.unit = unit;
-    if (lowStockThreshold !== undefined) item.lowStockThreshold = Number(lowStockThreshold);
-    if (expiryDate !== undefined) item.expiryDate = expiryDate ? new Date(expiryDate) : null;
+    if (lowStockThreshold !== undefined)
+      item.lowStockThreshold = Number(lowStockThreshold);
+    if (expiryDate !== undefined)
+      item.expiryDate = expiryDate ? new Date(expiryDate) : null;
     if (batchNumber !== undefined) item.batchNumber = batchNumber.trim();
     if (supplier !== undefined) item.supplier = supplier.trim();
     if (notes !== undefined) item.notes = notes.trim();
@@ -1337,7 +1520,9 @@ const updateMedicineStock = async (req, res) => {
       item.quantity = newQty;
     } else if (quantity !== undefined) {
       if (Number(quantity) < 0) {
-        return res.status(400).json({ success: false, message: 'Quantity cannot be negative.' });
+        return res
+          .status(400)
+          .json({ success: false, message: "Quantity cannot be negative." });
       }
       item.quantity = Number(quantity);
     }
@@ -1352,7 +1537,7 @@ const updateMedicineStock = async (req, res) => {
       item,
     });
   } catch (error) {
-    console.error('Update Medicine Stock Error:', error.message);
+    console.error("Update Medicine Stock Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -1368,7 +1553,7 @@ const deleteMedicineStock = async (req, res) => {
     if (!resolved) {
       return res.status(403).json({
         success: false,
-        message: 'You do not have permission to manage medicine stock.',
+        message: "You do not have permission to manage medicine stock.",
       });
     }
 
@@ -1382,7 +1567,7 @@ const deleteMedicineStock = async (req, res) => {
     if (!item) {
       return res.status(404).json({
         success: false,
-        message: 'Medicine stock item not found.',
+        message: "Medicine stock item not found.",
       });
     }
 
@@ -1394,13 +1579,14 @@ const deleteMedicineStock = async (req, res) => {
       message: `${item.medicineName} removed from stock.`,
     });
   } catch (error) {
-    console.error('Delete Medicine Stock Error:', error.message);
+    console.error("Delete Medicine Stock Error:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
 module.exports = {
   submitVetStaffApplication,
+  checkVetStaffEmail,
   getMyVetStaffApplication,
   getShelterVetApplications,
   scheduleVetInterview,

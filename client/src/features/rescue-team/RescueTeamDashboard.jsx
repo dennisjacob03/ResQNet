@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 import Header from './Header';
 import Sidebar from './Sidebar';
 import Dashboard from './Dashboard';
-import AssignedRequests from './AssignedRequests';
+import RescueOperations from './RescueOperations';
 import ManageVolunteers from './ManageVolunteers';
 import Notifications from './Notifications';
 import Profile from './Profile';
@@ -13,6 +13,7 @@ import UpdateRequestModal from './UpdateRequestModal';
 import VolunteerVisitModal from './VolunteerVisitModal';
 import VolunteerVisitReportModal from './VolunteerVisitReportModal';
 import VolunteerDetailsModal from './VolunteerDetailsModal';
+import LiveRescueTrackingModal from '../user-dashboard/LiveRescueTrackingModal';
 import NearbySheltersModal from './NearbySheltersModal';
 
 import {
@@ -24,13 +25,16 @@ import {
   getRescueTeamBroadcasts,
   acceptRescueRequest,
   declineRescueRequest,
+  getAllRescueTeamsAndSheltersMap,
 } from '../../services/rescueRequestService';
+
+import { useDashboardTabNavigation } from '../../utils/dashboardNavigation';
 
 const RescueTeamDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState('Rescue Dashboard');
+  const [activeTab, setActiveTab] = useDashboardTabNavigation('Rescue Team');
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     const saved = localStorage.getItem('resqnet_sidebar_open');
     return saved !== null ? saved === 'true' : true;
@@ -54,6 +58,9 @@ const RescueTeamDashboard = () => {
   const [broadcasts, setBroadcasts] = useState([]);
   const [broadcastsLoading, setBroadcastsLoading] = useState(false);
   const [activityTimeline, setActivityTimeline] = useState([]);
+  const [teamProfile, setTeamProfile] = useState(null);
+  const [shelters, setShelters] = useState([]);
+  const [trackingRequestId, setTrackingRequestId] = useState(null);
 
   // Shelter Transfer Modal State
   const [showShelterModal, setShowShelterModal] = useState(false);
@@ -105,36 +112,81 @@ const RescueTeamDashboard = () => {
     setBroadcastsLoading(true);
     try {
       const res = await getRescueTeamBroadcasts();
-      if (res?.broadcasts) {
-        setBroadcasts(res.broadcasts);
-        const mapped = res.broadcasts
-          .filter(
-            (b) =>
-              b.isAssignedToThisTeam ||
-              b.status === 'In Transit' ||
-              b.status === 'Assigned' ||
-              b.rescueStage === 'En Route' ||
-              b.rescueStage === 'Arrived on Scene' ||
-              b.rescueStage === 'Animal Rescued' ||
-              b.rescueStage === 'Transporting to Shelter'
-          )
-          .map((b) => ({
-            id: b.rescueRequestId || b._id,
+      if (res?.team) {
+        setTeamProfile(res.team);
+      }
+      const rawRequests = res?.requests || res?.broadcasts || [];
+      if (Array.isArray(rawRequests)) {
+        setBroadcasts(rawRequests);
+        const mapped = rawRequests.map((b) => {
+          const reqId = b.rescueRequestId || b._id || b.id;
+          const isAssigned =
+            b.isAssignedToMe ||
+            b.isAssignedToThisTeam ||
+            b.myStatus === 'Assigned' ||
+            (user?._id && String(b.assignedRescueTeamId) === String(user._id));
+          const isAccepted =
+            b.myStatus === 'Accepted' ||
+            b.myStatus === 'Backup' ||
+            b.candidateStatus === 'Accepted';
+
+          return {
+            id: reqId,
             _id: b._id,
+            rescueRequestId: b.rescueRequestId,
             animal: `${b.animalCondition || 'Injured'} ${b.animalType || 'Animal'}`,
-            animalIcon: b.animalType === 'Cat' ? '🐱' : b.animalType === 'Bird' ? '🐦' : '🐕',
+            animalType: b.animalType || 'Animal',
+            animalCondition: b.animalCondition || 'Injured',
+            animalIcon:
+              b.animalType === 'Cat'
+                ? '🐱'
+                : b.animalType === 'Bird'
+                ? '🐦'
+                : b.animalType === 'Cow' || b.animalType === 'Cattle'
+                ? '🐄'
+                : '🐕',
             location: b.locationAddress || 'Incident Location',
-            reporter: b.reportedByName || 'Citizen Reporter',
-            priority: b.animalCondition === 'Injured' ? 'Critical' : 'High',
+            locationAddress: b.locationAddress,
+            city: b.city,
+            district: b.district,
+            latitude: b.latitude,
+            longitude: b.longitude,
+            reporter: b.reportedByName || b.userId?.fullName || 'Citizen Reporter',
+            reporterPhone: b.reportedByPhone || b.userId?.phoneNumber || '',
+            priority: b.priority || (b.animalCondition === 'Injured' ? 'Critical' : 'High'),
             status: b.rescueStage || b.status,
-            time: new Date(b.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            priorityColor: 'bg-rose-50 text-rose-700 border-rose-200',
-            statusColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            rescueStage: b.rescueStage || b.status,
+            myStatus: b.myStatus || (isAssigned ? 'Assigned' : isAccepted ? 'Accepted' : 'Notified'),
+            isAssignedToThisTeam: isAssigned,
+            isAssignedToMe: isAssigned,
+            distanceKm: b.distanceKm ?? b.myDistanceKm ?? 0,
+            time: b.createdAt
+              ? new Date(b.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : 'Recently',
+            createdAt: b.createdAt,
+            priorityColor:
+              b.priority === 'Emergency' || b.priority === 'Critical'
+                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                : b.priority === 'High'
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-blue-50 text-blue-700 border-blue-200',
+            statusColor: isAssigned
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : isAccepted
+              ? 'bg-blue-50 text-blue-700 border-blue-200'
+              : 'bg-amber-50 text-amber-700 border-amber-200',
             raw: b,
-          }));
-        if (mapped.length > 0) {
-          setRescueRequests(mapped);
-        }
+          };
+        });
+        setRescueRequests(mapped);
+
+        const activities = mapped.slice(0, 6).map((item) => ({
+          time: item.time,
+          text: `${item.animal}: ${item.status} (${item.location})`,
+          color: item.isAssignedToThisTeam ? 'bg-emerald-500' : 'bg-blue-500',
+          highlight: item.isAssignedToThisTeam,
+        }));
+        setActivityTimeline(activities);
       }
     } catch (err) {
       console.warn('Failed to load rescue broadcasts:', err);
@@ -143,11 +195,31 @@ const RescueTeamDashboard = () => {
     }
   };
 
+  const loadMapShelters = async () => {
+    try {
+      const res = await getAllRescueTeamsAndSheltersMap();
+      if (res?.shelters && Array.isArray(res.shelters)) {
+        setShelters(res.shelters);
+      }
+    } catch (err) {
+      console.warn('Failed to load shelters for live map:', err.message);
+    }
+  };
+
   useEffect(() => {
-    loadVolunteers();
-    loadBroadcasts();
-    const interval = setInterval(loadBroadcasts, 15000);
-    return () => clearInterval(interval);
+    let isMounted = true;
+    const init = async () => {
+      if (!isMounted) return;
+      await Promise.allSettled([loadVolunteers(), loadBroadcasts(), loadMapShelters()]);
+    };
+    init();
+    const interval = setInterval(() => {
+      loadBroadcasts();
+    }, 15000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const handleAcceptRequest = async (reqId) => {
@@ -336,14 +408,17 @@ const RescueTeamDashboard = () => {
           {activeTab === 'Rescue Dashboard' && (
             <Dashboard
               user={user}
+              teamProfile={teamProfile}
               isOnline={isOnline}
               setIsOnline={setIsOnline}
               pendingCount={pendingCount}
               enRouteCount={enRouteCount}
               completedCount={completedCount}
               activityTimeline={activityTimeline}
+              requests={rescueRequests}
               filtered={filtered}
               broadcasts={broadcasts}
+              shelters={shelters}
               broadcastsLoading={broadcastsLoading}
               onAcceptBroadcast={handleAcceptRequest}
               onDeclineBroadcast={handleDeclineRequest}
@@ -352,14 +427,17 @@ const RescueTeamDashboard = () => {
                 setSelectedRequestForShelter(req);
                 setShowShelterModal(true);
               }}
+              onTrackMission={(req) => setTrackingRequestId(req?._id || req?.id || req?.rescueRequestId || req)}
+              onRefresh={loadBroadcasts}
               volunteerApplications={volunteerApplications}
               setActiveTab={setActiveTab}
             />
           )}
 
-          {activeTab === 'Assigned Requests' && (
+          {(activeTab === 'Rescue Operations' || activeTab === 'Assigned Requests') && (
             <div className="space-y-6">
-              <AssignedRequests
+              <RescueOperations
+                requests={rescueRequests}
                 filtered={filtered}
                 broadcasts={broadcasts}
                 broadcastsLoading={broadcastsLoading}
@@ -374,6 +452,8 @@ const RescueTeamDashboard = () => {
                   setSelectedRequestForShelter(req);
                   setShowShelterModal(true);
                 }}
+                onTrackMission={(req) => setTrackingRequestId(req?._id || req?.id || req?.rescueRequestId || req)}
+                onRefresh={loadBroadcasts}
               />
             </div>
           )}
@@ -481,6 +561,16 @@ const RescueTeamDashboard = () => {
         onOpenScheduleVisit={handleOpenScheduleVisit}
         onOpenReportModal={handleOpenReportModal}
       />
+
+      {/* Live Rescue Mission Tracking Modal */}
+      {trackingRequestId && (
+        <LiveRescueTrackingModal
+          isOpen={Boolean(trackingRequestId)}
+          onClose={() => setTrackingRequestId(null)}
+          rescueRequestId={trackingRequestId}
+          showTeamResponses={true}
+        />
+      )}
     </div>
   );
 };

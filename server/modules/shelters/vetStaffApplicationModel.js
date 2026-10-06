@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const vetStaffApplicationSchema = new mongoose.Schema(
   {
@@ -8,57 +8,69 @@ const vetStaffApplicationSchema = new mongoose.Schema(
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'User ID is required'],
+      ref: "User",
+      required: [true, "User ID is required"],
     },
     fullName: {
       type: String,
-      required: [true, 'Full name is required'],
+      required: [true, "Full name is required"],
       trim: true,
     },
     email: {
       type: String,
-      required: [true, 'Email is required'],
+      required: [true, "Email is required"],
+      trim: true,
+      lowercase: true,
+    },
+    applicantEmail: {
+      type: String,
+      default: "",
       trim: true,
       lowercase: true,
     },
     phone: {
       type: String,
-      required: [true, 'Phone number is required'],
+      required: [true, "Phone number is required"],
       trim: true,
     },
+    isEmailVerified: { type: Boolean, default: false },
+    isPhoneVerified: { type: Boolean, default: false },
+    address: { type: String, default: "", trim: true },
+    pincode: { type: String, default: "", trim: true },
+    state: { type: String, default: "", trim: true },
     password: {
       type: String,
-      default: '',
+      default: "",
     },
     district: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     city: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
+    location: { type: String, default: "", trim: true },
     position: {
       type: String,
-      enum: ['Veterinary Doctor', 'Veterinary Nurse'],
-      default: 'Veterinary Doctor',
+      enum: ["Veterinary Doctor", "Veterinary Nurse"],
+      default: "Veterinary Doctor",
     },
     councilRegistrationNumber: {
       type: String,
-      required: [true, 'Veterinary Council registration number is required'],
+      required: [true, "Veterinary Council registration number is required"],
       trim: true,
     },
     qualification: {
       type: String,
-      default: 'BVSc & AH',
+      default: "BVSc & AH",
       trim: true,
     },
     specialization: {
       type: String,
-      default: 'General Canine & Feline Medicine',
+      default: "General Canine & Feline Medicine",
       trim: true,
     },
     experienceYears: {
@@ -68,35 +80,35 @@ const vetStaffApplicationSchema = new mongoose.Schema(
     },
     targetShelterId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Shelter',
+      ref: "Shelter",
       default: null, // null means Open to All Shelters
     },
     targetShelterName: {
       type: String,
-      default: 'All Shelters (Open)',
+      default: "All Shelters (Open)",
       trim: true,
     },
     assignedShelterId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Shelter',
+      ref: "Shelter",
       default: null,
     },
     assignedShelterName: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     status: {
       type: String,
       enum: {
-        values: ['Pending', 'Interview Scheduled', 'Approved', 'Rejected'],
-        message: '{VALUE} is not a valid application status',
+        values: ["Pending", "Interview Scheduled", "Approved", "Rejected"],
+        message: "{VALUE} is not a valid application status",
       },
-      default: 'Pending',
+      default: "Pending",
     },
     resume: {
       type: String, // Base64 or bio text
-      default: '',
+      default: "",
     },
     applicationDate: {
       type: Date,
@@ -109,28 +121,28 @@ const vetStaffApplicationSchema = new mongoose.Schema(
     },
     interviewTimeSlot: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     interviewLocation: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     interviewInterviewer: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     interviewNotes: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     // Interview Evaluation Report Details
     interviewReport: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     interviewReportDate: {
@@ -139,7 +151,7 @@ const vetStaffApplicationSchema = new mongoose.Schema(
     },
     interviewReportDecision: {
       type: String,
-      enum: ['Approved', 'Rejected', null],
+      enum: ["Approved", "Rejected", null],
       default: null,
     },
     interviewChecks: {
@@ -150,7 +162,7 @@ const vetStaffApplicationSchema = new mongoose.Schema(
     },
     rejectionReason: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     // Assigned Vet Staff Identifiers upon approval
@@ -165,14 +177,14 @@ const vetStaffApplicationSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Auto-generate vetStaffApplicationId (e.g. VSA-0001) before save
-vetStaffApplicationSchema.pre('save', async function () {
+vetStaffApplicationSchema.pre("save", async function () {
   if (!this.vetStaffApplicationId) {
     const records = await mongoose
-      .model('VetStaffApplication')
+      .model("VetStaffApplication")
       .find({}, { vetStaffApplicationId: 1 })
       .lean();
 
@@ -187,8 +199,11 @@ vetStaffApplicationSchema.pre('save', async function () {
       }
     });
 
-    this.vetStaffApplicationId = `VSA-${String(maxSeq + 1).padStart(4, '0')}`;
+    this.vetStaffApplicationId = `VSA-${String(maxSeq + 1).padStart(4, "0")}`;
   }
 });
 
-module.exports = mongoose.model('VetStaffApplication', vetStaffApplicationSchema);
+module.exports = mongoose.model(
+  "VetStaffApplication",
+  vetStaffApplicationSchema,
+);

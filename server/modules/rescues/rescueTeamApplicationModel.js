@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const rescueTeamApplicationSchema = new mongoose.Schema(
   {
@@ -8,70 +8,88 @@ const rescueTeamApplicationSchema = new mongoose.Schema(
     },
     applicantId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'Applicant ID is required'],
+      ref: "User",
+      required: [true, "Applicant ID is required"],
     },
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-    },
-    teamName: {
+    rescueTeamName: {
       type: String,
-      required: [true, 'Team name is required'],
+      required: [true, "Team name is required"],
       trim: true,
     },
-    teamLeadName: {
+    applicantName: {
       type: String,
-      required: [true, 'Team lead name is required'],
+      required: [true, "Team lead name is required"],
       trim: true,
     },
     contactEmail: {
       type: String,
-      required: [true, 'Contact email is required'],
+      required: [true, "Contact email is required"],
       trim: true,
       lowercase: true,
     },
     contactPhone: {
       type: String,
-      required: [true, 'Contact phone is required'],
+      required: [true, "Contact phone is required"],
       trim: true,
     },
+    isEmailVerified: { type: Boolean, default: false },
+    isPhoneVerified: { type: Boolean, default: false },
     operatingDistrict: {
       type: String,
-      required: [true, 'Operating district is required'],
+      required: [true, "Operating district is required"],
       trim: true,
     },
     coverageZone: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     vehicleNumber: {
       type: String,
-      required: [true, 'Vehicle number is required'],
+      required: [true, "Vehicle number is required"],
       trim: true,
       uppercase: true,
     },
     vehicleType: {
       type: String,
       enum: {
-        values: ['Van', 'Ambulance', 'Bike', 'Car', 'Other'],
-        message: '{VALUE} is not a valid vehicle type',
+        values: ["Van", "Ambulance", "Bike", "Car", "Other"],
+        message: "{VALUE} is not a valid vehicle type",
       },
-      required: [true, 'Vehicle type is required'],
+      required: [true, "Vehicle type is required"],
     },
     totalMembers: {
       type: Number,
-      required: [true, 'Total number of active responders is required'],
-      min: [1, 'Must have at least 1 responder'],
+      required: [true, "Total number of active responders is required"],
+      min: [1, "Must have at least 1 responder"],
     },
     equipment: {
       type: [String],
-      default: ['First Aid Kit', 'Gloves & Handling Gear'],
+      default: ["First Aid Kit", "Gloves & Handling Gear"],
     },
     address: {
       type: String,
-      default: '',
+      default: "",
+      trim: true,
+    },
+    pincode: {
+      type: String,
+      required: [true, "PIN code is required"],
+      trim: true,
+    },
+    state: {
+      type: String,
+      required: [true, "State is required"],
+      trim: true,
+    },
+    district: {
+      type: String,
+      required: [true, "District is required"],
+      trim: true,
+    },
+    city: {
+      type: String,
+      required: [true, "City is required"],
       trim: true,
     },
     latitude: {
@@ -84,13 +102,13 @@ const rescueTeamApplicationSchema = new mongoose.Schema(
     },
     notes: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     applicationStatus: {
       type: String,
-      enum: ['Pending', 'Team Visit', 'Approved', 'Rejected'],
-      default: 'Pending',
+      enum: ["Pending", "Team Visit", "Approved", "Rejected"],
+      default: "Pending",
     },
     teamVisitScheduleDate: {
       type: Date,
@@ -98,22 +116,22 @@ const rescueTeamApplicationSchema = new mongoose.Schema(
     },
     teamVisitValuationPeriod: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     teamVisitInspector: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     teamVisitNotes: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     teamVisitReport: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     teamVisitReportDate: {
@@ -122,7 +140,7 @@ const rescueTeamApplicationSchema = new mongoose.Schema(
     },
     teamVisitReportDecision: {
       type: String,
-      default: '',
+      default: "",
     },
     teamVisitChecks: {
       vehicleVerified: {
@@ -145,18 +163,30 @@ const rescueTeamApplicationSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
+rescueTeamApplicationSchema.pre("validate", function () {
+  if (!this.applicantName && this.get("ApplicantName")) {
+    this.applicantName = this.get("ApplicantName");
+  }
+});
+
 // Auto-generate human-readable rescueTeamApplicationId (e.g. RTA-0001) before save
-rescueTeamApplicationSchema.pre('save', async function () {
-  if (this.vehicleNumber && typeof this.vehicleNumber === 'string') {
+rescueTeamApplicationSchema.pre("save", async function () {
+  if (this.vehicleNumber && typeof this.vehicleNumber === "string") {
     this.vehicleNumber = this.vehicleNumber.trim().toUpperCase();
   }
+  // Remove legacy duplicate identity fields when an old application is saved again.
+  if (!this.applicantName && this.get("ApplicantName")) {
+    this.applicantName = this.get("ApplicantName");
+  }
+  this.set("ApplicantName", undefined);
+  this.set("userId", undefined);
 
   if (!this.rescueTeamApplicationId) {
     const records = await mongoose
-      .model('RescueTeamApplication')
+      .model("RescueTeamApplication")
       .find({}, { rescueTeamApplicationId: 1 })
       .lean();
 
@@ -171,14 +201,11 @@ rescueTeamApplicationSchema.pre('save', async function () {
       }
     });
 
-    this.rescueTeamApplicationId = `RTA-${String(maxSeq + 1).padStart(4, '0')}`;
-  }
-
-  if (this.applicantId && !this.userId) {
-    this.userId = this.applicantId;
-  } else if (this.userId && !this.applicantId) {
-    this.applicantId = this.userId;
+    this.rescueTeamApplicationId = `RTA-${String(maxSeq + 1).padStart(4, "0")}`;
   }
 });
 
-module.exports = mongoose.model('RescueTeamApplication', rescueTeamApplicationSchema);
+module.exports = mongoose.model(
+  "RescueTeamApplication",
+  rescueTeamApplicationSchema,
+);

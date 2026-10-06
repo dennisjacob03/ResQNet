@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import AuthLayout from '../components/AuthLayout';
-import { AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2, XCircle, Eye, EyeOff } from 'lucide-react';
 import { loginSchema, validateField } from '../../../utils/validationSchemas';
 
 const LoginPage = () => {
@@ -20,6 +20,7 @@ const LoginPage = () => {
   const [touched, setTouched] = useState({});
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -176,16 +177,26 @@ const LoginPage = () => {
           </div>
           <div className="relative">
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               name="password"
               value={formData.password}
               onChange={handleChange}
               onBlur={handleBlur}
               placeholder="••••••••"
-              className={getInputClass('password')}
+              className={`${getInputClass('password')} pr-9`}
             />
+            {/* Show/Hide toggle */}
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              tabIndex={-1}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
             {touched.password && !errors.password && formData.password && (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 absolute right-3 top-2.5" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 absolute right-8 top-2.5" />
             )}
           </div>
           {touched.password && errors.password && (

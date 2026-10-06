@@ -21,11 +21,13 @@ import {
   getVaccinationRecords,
 } from '../../services/veterinaryService';
 
+import { useDashboardTabNavigation } from '../../utils/dashboardNavigation';
+
 const VetDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState('Vet Dashboard');
+  const [activeTab, setActiveTab] = useDashboardTabNavigation('Veterinary Staff');
   const [subTab, setSubTab] = useState('Medical Records');
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     const saved = localStorage.getItem('resqnet_sidebar_open');

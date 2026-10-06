@@ -160,6 +160,28 @@ const ApplicationDetailsModal = ({
                     {application.latitude?.toFixed(4)}, {application.longitude?.toFixed(4)}
                   </p>
                 </div>
+                {(application.address ||
+                  application.city ||
+                  application.district ||
+                  application.state ||
+                  application.pincode) && (
+                  <div className="sm:col-span-2">
+                    <span className="text-slate-400 font-bold block uppercase text-[10px]">
+                      Shelter Physical Address
+                    </span>
+                    <p className="font-extrabold text-slate-800 mt-0.5">
+                      {[
+                        application.address,
+                        application.city,
+                        application.district,
+                        application.state,
+                        application.pincode ? `PIN: ${application.pincode}` : '',
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                    </p>
+                  </div>
+                )}
               </>
             )}
 

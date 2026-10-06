@@ -122,7 +122,7 @@ const AddUserModal = ({
     dob: '',
 
     // Rescue Team Fields
-    teamName: '',
+    rescueTeamName: '',
     vehicleType: 'Van',
     vehicleNumber: '',
     operatingDistrict: 'Ernakulam',
@@ -287,10 +287,10 @@ const AddUserModal = ({
     setLocalError('');
     setLocalSuccess('');
 
-    // For Rescue Team & Shelter: use teamName or shelterName as the account fullName
+    // For Rescue Team & Shelter: use rescueTeamName or shelterName as the account fullName
     const effectiveFullName =
       formData.role === 'Rescue Team'
-        ? (formData.teamName || '').trim()
+        ? (formData.rescueTeamName || '').trim()
         : formData.role === 'Shelter'
         ? (formData.shelterName || '').trim()
         : (formData.fullName || '').trim();
@@ -311,7 +311,7 @@ const AddUserModal = ({
       dob: formData.dob || '',
 
       // Role specific fields
-      teamName: (formData.teamName || '').trim(),
+      rescueTeamName: (formData.rescueTeamName || '').trim(),
       vehicleType: formData.vehicleType,
       vehicleNumber: (formData.vehicleNumber || '').trim().toUpperCase(),
       operatingDistrict: formData.operatingDistrict || formData.district,
@@ -479,7 +479,7 @@ const AddUserModal = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Full Name: ONLY displayed for Public User and Veterinary Staff.
-                    For Rescue Team & Shelter, teamName/shelterName is used directly! */}
+                    For Rescue Team & Shelter, rescueTeamName/shelterName is used directly! */}
                 {(formData.role === 'Public User' || formData.role === 'Veterinary Staff') && (
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-700">
@@ -715,18 +715,18 @@ const AddUserModal = ({
                     </label>
                     <input
                       type="text"
-                      value={formData.teamName}
-                      onChange={(e) => handleFieldChange('teamName', e.target.value)}
-                      onBlur={() => handleBlurField('teamName')}
+                      value={formData.rescueTeamName}
+                      onChange={(e) => handleFieldChange('rescueTeamName', e.target.value)}
+                      onBlur={() => handleBlurField('rescueTeamName')}
                       placeholder="e.g. Kochi Rapid Animal Rescue Squad"
                       className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-none transition ${
-                        fieldErrors.teamName && touched.teamName
+                        fieldErrors.rescueTeamName && touched.rescueTeamName
                           ? 'border border-rose-400 bg-rose-50/20'
                           : 'bg-white border border-slate-200 focus:border-[#237737]'
                       }`}
                     />
-                    {fieldErrors.teamName && touched.teamName && (
-                      <p className="text-[11px] text-rose-500 font-semibold">{fieldErrors.teamName}</p>
+                    {fieldErrors.rescueTeamName && touched.rescueTeamName && (
+                      <p className="text-[11px] text-rose-500 font-semibold">{fieldErrors.rescueTeamName}</p>
                     )}
                   </div>
 

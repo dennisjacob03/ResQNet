@@ -1,9 +1,28 @@
 const { 
   sendEmail, 
   sendWelcomeEmail, 
+  sendAccountApprovedEmail,
   sendPasswordResetEmail, 
   sendEmergencyAlertEmail,
-  sendAdoptionStatusEmail
+  sendAdoptionStatusEmail,
+  sendAdoptionApplicationSubmittedEmail,
+  sendAdoptionVisitScheduledEmail,
+  sendShelterApplicationSubmittedEmail,
+  sendShelterSiteVisitScheduledEmail,
+  sendShelterApprovalEmail,
+  sendShelterApplicationRejectedEmail,
+  sendRescueTeamApplicationSubmittedEmail,
+  sendRescueTeamVisitScheduledEmail,
+  sendRescueTeamApprovalEmail,
+  sendRescueTeamRejectedEmail,
+  sendVolunteerApplicationSubmittedEmail,
+  sendVolunteerVisitScheduledEmail,
+  sendVolunteerApprovalEmail,
+  sendVolunteerRejectedEmail,
+  sendVetStaffApplicationSubmittedEmail,
+  sendVetInterviewScheduledEmail,
+  sendVetStaffApprovalEmail,
+  sendVetStaffRejectedEmail,
 } = require('../../utils/emailService');
 
 /**
@@ -69,14 +88,71 @@ const sendCustomEmail = async (req, res) => {
       case 'welcome':
         result = await sendWelcomeEmail({ email: to, fullName: data?.fullName, role: data?.role });
         break;
+      case 'account-approved':
+        result = await sendAccountApprovedEmail({ email: to, fullName: data?.fullName, role: data?.role });
+        break;
       case 'password-reset':
         result = await sendPasswordResetEmail({ email: to, fullName: data?.fullName }, data?.code || data?.resetUrl || '123456');
         break;
       case 'emergency-alert':
         result = await sendEmergencyAlertEmail(to, data || {});
         break;
+      case 'adoption-submitted':
+        result = await sendAdoptionApplicationSubmittedEmail(to, data || {});
+        break;
+      case 'adoption-visit':
+        result = await sendAdoptionVisitScheduledEmail(to, data || {});
+        break;
       case 'adoption-status':
         result = await sendAdoptionStatusEmail({ email: to, fullName: data?.fullName }, data || { petName: 'Pet', status: 'Pending' });
+        break;
+      case 'shelter-submitted':
+        result = await sendShelterApplicationSubmittedEmail(to, data || {});
+        break;
+      case 'shelter-visit':
+        result = await sendShelterSiteVisitScheduledEmail(to, data || {});
+        break;
+      case 'shelter-approved':
+        result = await sendShelterApprovalEmail(to, data || {});
+        break;
+      case 'shelter-rejected':
+        result = await sendShelterApplicationRejectedEmail(to, data || {});
+        break;
+      case 'rescue-submitted':
+        result = await sendRescueTeamApplicationSubmittedEmail(to, data || {});
+        break;
+      case 'rescue-visit':
+        result = await sendRescueTeamVisitScheduledEmail(to, data || {});
+        break;
+      case 'rescue-approved':
+        result = await sendRescueTeamApprovalEmail(to, data || {});
+        break;
+      case 'rescue-rejected':
+        result = await sendRescueTeamRejectedEmail(to, data || {});
+        break;
+      case 'volunteer-submitted':
+        result = await sendVolunteerApplicationSubmittedEmail(to, data || {});
+        break;
+      case 'volunteer-visit':
+        result = await sendVolunteerVisitScheduledEmail(to, data || {});
+        break;
+      case 'volunteer-approved':
+        result = await sendVolunteerApprovalEmail(to, data || {});
+        break;
+      case 'volunteer-rejected':
+        result = await sendVolunteerRejectedEmail(to, data || {});
+        break;
+      case 'vet-submitted':
+        result = await sendVetStaffApplicationSubmittedEmail(to, data || {});
+        break;
+      case 'vet-interview':
+        result = await sendVetInterviewScheduledEmail(to, data || {});
+        break;
+      case 'vet-approved':
+        result = await sendVetStaffApprovalEmail(to, data || {});
+        break;
+      case 'vet-rejected':
+        result = await sendVetStaffRejectedEmail(to, data || {});
         break;
       default:
         if (!subject || (!body && !req.body.html)) {

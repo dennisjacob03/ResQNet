@@ -232,7 +232,9 @@ const ManageShelters = ({
                               </span>
                             </div>
                             <div className="text-[11px] text-slate-400 font-semibold">
-                              {shelter.userId?.fullName
+                              {shelter.managerId?.fullName
+                                ? `Manager: ${shelter.managerId.fullName}`
+                                : shelter.userId?.fullName
                                 ? `Manager: ${shelter.userId.fullName}`
                                 : 'System Admin'}
                             </div>

@@ -35,7 +35,8 @@ import {
   LogIn,
   Loader2,
   Bell,
-  Star
+  Star,
+  Lock,
 } from 'lucide-react';
 import { getAnimalById } from '../../services/animalService';
 import { useAuth } from '../../context/AuthContext';
@@ -1462,36 +1463,55 @@ const PetDetailsPage = () => {
                 <form onSubmit={handleAdoptSubmit} className="space-y-4">
                   
                   {/* Applicant Linked Details Card */}
-                  <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-4 space-y-2">
+                  <div className="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-4 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-extrabold uppercase text-[#237737] flex items-center gap-1.5">
                         <ShieldCheck className="w-4 h-4 text-[#237737]" /> Verified Applicant Info
                       </span>
-                      <span className="text-[10px] text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md font-bold">
-                        Linked Account
+                      <span className="text-[10px] text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
+                        <Lock className="w-2.5 h-2.5" /> From Profile
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-semibold block">Full Name</span>
+                      <div className="p-2 bg-white/70 rounded-xl border border-emerald-100">
+                        <span className="text-[10px] text-slate-400 font-semibold flex items-center justify-between">
+                          <span>Full Name</span>
+                          <Lock className="w-2.5 h-2.5 text-slate-400" />
+                        </span>
                         <span className="font-bold text-slate-800">{user.fullName || 'User'}</span>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-semibold block">Contact Phone</span>
+                      <div className="p-2 bg-white/70 rounded-xl border border-emerald-100">
+                        <span className="text-[10px] text-slate-400 font-semibold flex items-center justify-between">
+                          <span>Contact Phone</span>
+                          <Lock className="w-2.5 h-2.5 text-slate-400" />
+                        </span>
                         <span className="font-bold text-slate-800">{user.phoneNumber || 'Not provided'}</span>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-semibold block">Email</span>
+                      <div className="p-2 bg-white/70 rounded-xl border border-emerald-100">
+                        <span className="text-[10px] text-slate-400 font-semibold flex items-center justify-between">
+                          <span>Email</span>
+                          <Lock className="w-2.5 h-2.5 text-slate-400" />
+                        </span>
                         <span className="font-bold text-slate-800 truncate block">{user.email}</span>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-semibold block">Location</span>
+                      <div className="p-2 bg-white/70 rounded-xl border border-emerald-100">
+                        <span className="text-[10px] text-slate-400 font-semibold flex items-center justify-between">
+                          <span>Location</span>
+                          <Lock className="w-2.5 h-2.5 text-slate-400" />
+                        </span>
                         <span className="font-bold text-slate-800">{user.city ? `${user.city}, ${user.state || ''}` : 'Location on file'}</span>
                       </div>
                     </div>
-                    <p className="text-[10px] text-emerald-800 font-medium pt-1 border-t border-emerald-100">
-                      Contact details are automatically retrieved from your account for shelter follow-ups.
-                    </p>
+                    <div className="flex items-center justify-between pt-1 border-t border-emerald-100 text-[10px] text-emerald-800 font-medium">
+                      <span>Applicant details are locked to your profile.</span>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/dashboard?tab=profile')}
+                        className="text-[10px] font-bold text-[#237737] hover:underline cursor-pointer"
+                      >
+                        Edit Profile &rarr;
+                      </button>
+                    </div>
                   </div>
 
                   {/* Housing Type Field */}

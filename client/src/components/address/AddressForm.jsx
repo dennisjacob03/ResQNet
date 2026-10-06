@@ -194,7 +194,7 @@ const AddressForm = ({
       {showAddressLine && (
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-            House / Flat / Street Address
+            Permanent Address
           </label>
           <input
             type="text"

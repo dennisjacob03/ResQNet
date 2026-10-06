@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import {
   Bell,
   Star,
@@ -10,124 +10,110 @@ import {
   AlertTriangle,
   Heart,
   Info,
-} from 'lucide-react';
-import Header from './Header';
-import Sidebar from './Sidebar';
-import Dashboard from './Dashboard';
-import RescueRequest from './RescueRequest';
-import Adoption from './adoption';
-import ShelterRegister from './ShelterRegister';
-import RescueTeamRegister from './RescueTeamRegister';
-import VolunteerRegister from './VolunteerRegister';
-import VeterinaryRegister from './VeterinaryRegister';
-import Notifications from './notifications';
-import Profile from './Profile';
-import RescueShelterMap from './RescueShelterMap';
-import LiveRescueTrackingModal from './LiveRescueTrackingModal';
+} from "lucide-react";
+import Header from "./Header";
+import Sidebar from "./Sidebar";
+import Dashboard from "./Dashboard";
+import RescueRequest from "./RescueRequest";
+import Adoption from "./adoption";
+import ShelterRegister from "./ShelterRegister";
+import RescueTeamRegister from "./RescueTeamRegister";
+import VolunteerRegister from "./VolunteerRegister";
+import VeterinaryRegister from "./VeterinaryRegister";
+import Notifications from "./notifications";
+import Profile from "./Profile";
+import RescueShelterMap from "./RescueShelterMap";
+import LiveRescueTrackingModal from "./LiveRescueTrackingModal";
 import {
   getMyNotifications,
   markNotificationRead,
   markAllNotificationsRead,
   deleteNotification,
   createNotification,
-} from '../../services/notificationService';
-import { getAllAnimals } from '../../services/animalService';
-import { getAllShelters } from '../../services/shelterService';
+} from "../../services/notificationService";
+import { getAllAnimals } from "../../services/animalService";
+import { getAllShelters } from "../../services/shelterService";
 import {
   createRescueRequest,
   getUserRescueRequests,
-} from '../../services/rescueRequestService';
-import { ProfileRequiredModal } from '../../components/common/ProfileRequiredCard';
-import { checkProfileCompletion, isActionTab } from '../../utils/profileUtils';
+} from "../../services/rescueRequestService";
+import { ProfileRequiredModal } from "../../components/common/ProfileRequiredCard";
+import { checkProfileCompletion, isActionTab } from "../../utils/profileUtils";
+import { useDashboardTabNavigation } from "../../utils/dashboardNavigation";
 
 const UserDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [activeTab, setActiveTab] = useState('Dashboard');
+  // Profile Required Action Modal States
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileModalAction, setProfileModalAction] = useState("Report Animal");
+  const [initialProfileEdit, setInitialProfileEdit] = useState(false);
+
+  // Profile check callback when an action tab is activated
+  const handleProfileCheckOnTab = useCallback(
+    (tabName, sourceAction = null) => {
+      if (isActionTab(tabName)) {
+        const profileStatus = checkProfileCompletion(user);
+        if (!profileStatus.isComplete) {
+          setProfileModalAction(sourceAction || tabName);
+          setProfileModalOpen(true);
+        }
+      }
+    },
+    [user],
+  );
+
+  const [activeTab, handleTabChange] = useDashboardTabNavigation(
+    "Public User",
+    handleProfileCheckOnTab,
+  );
+
   const [sidebarOpen, setSidebarOpen] = useState(() => {
-    const saved = localStorage.getItem('resqnet_sidebar_open');
-    return saved !== null ? saved === 'true' : true;
+    const saved = localStorage.getItem("resqnet_sidebar_open");
+    return saved !== null ? saved === "true" : true;
   });
 
   const toggleSidebar = () => {
     setSidebarOpen((prev) => {
       const next = !prev;
-      localStorage.setItem('resqnet_sidebar_open', String(next));
+      localStorage.setItem("resqnet_sidebar_open", String(next));
       return next;
     });
-  };
-
-  // Profile Required Action Modal States
-  const [profileModalOpen, setProfileModalOpen] = useState(false);
-  const [profileModalAction, setProfileModalAction] = useState('Report Animal');
-  const [initialProfileEdit, setInitialProfileEdit] = useState(false);
-
-  // Centralized tab change handler that verifies profile completion for action tabs
-  const handleTabChange = (tabName, sourceAction = null) => {
-    setActiveTab(tabName);
-    if (isActionTab(tabName)) {
-      const profileStatus = checkProfileCompletion(user);
-      if (!profileStatus.isComplete) {
-        setProfileModalAction(sourceAction || tabName);
-        setProfileModalOpen(true);
-      }
-    }
   };
 
   const handleGoToProfile = () => {
     setProfileModalOpen(false);
     setInitialProfileEdit(true);
-    setActiveTab('My Profile');
+    handleTabChange("My Profile");
   };
 
-  const handleRequireProfile = (actionName = 'perform this action') => {
+  const handleRequireProfile = (actionName = "perform this action") => {
     setProfileModalAction(actionName);
     setProfileModalOpen(true);
   };
 
-  // Deep-link tab activation via ?tab query param
-  useEffect(() => {
-    const tabParam = new URLSearchParams(location.search).get('tab');
-    if (!tabParam) return;
-    const tabLower = tabParam.toLowerCase();
-    const tabMap = {
-      dashboard: 'Dashboard',
-      report: 'Report Animal',
-      map: 'Rescue & Shelter Map',
-      adopt: 'Adopt a Pet',
-      shelter: 'Register Shelter',
-      rescue: 'Register Rescue Team',
-      volunteer: 'Volunteer',
-      vet: 'Join Vet Staff',
-      notifications: 'Notifications',
-      profile: 'My Profile',
-    };
-    if (tabMap[tabLower]) {
-      handleTabChange(tabMap[tabLower]);
-    }
-  }, [location.search]);
-
   // Form states for Report Animal
-  const [animalType, setAnimalType] = useState('Dog');
-  const [animalCondition, setAnimalCondition] = useState('Injured');
-  const [description, setDescription] = useState('');
-  const [locationInput, setLocationInput] = useState('');
+  const [animalType, setAnimalType] = useState("Dog");
+  const [animalCondition, setAnimalCondition] = useState("Injured");
+  const [description, setDescription] = useState("");
+  const [locationInput, setLocationInput] = useState("");
   const [latitude, setLatitude] = useState(null);
   const [longitude, setLongitude] = useState(null);
-  const [district, setDistrict] = useState('');
-  const [hasPhoto, setHasPhoto] = useState(false);
+  const [district, setDistrict] = useState("");
+  const [photoFile, setPhotoFile] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submittingReport, setSubmittingReport] = useState(false);
 
   // Live Tracking Modal State
   const [trackingModalOpen, setTrackingModalOpen] = useState(false);
   const [activeTrackingId, setActiveTrackingId] = useState(null);
+  const [latestSubmittedReportId, setLatestSubmittedReportId] = useState(null);
 
   // Search & Filter states for Adoption
-  const [searchTerm, setSearchTerm] = useState('');
-  const [petCategory, setPetCategory] = useState('All');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [petCategory, setPetCategory] = useState("All");
   const [adoptionPets, setAdoptionPets] = useState([]);
   const [sheltersList, setSheltersList] = useState([]);
 
@@ -144,7 +130,7 @@ const UserDashboard = () => {
         setNotifications(res.notifications || []);
       }
     } catch (err) {
-      console.warn('Failed to load notifications:', err.message);
+      console.warn("Failed to load notifications:", err.message);
     } finally {
       setNotificationsLoading(false);
     }
@@ -166,7 +152,7 @@ const UserDashboard = () => {
         setRescueReports(requestsRes.requests);
       }
     } catch (err) {
-      console.warn('Failed to load user dashboard resources:', err);
+      console.warn("Failed to load user dashboard resources:", err);
     }
   };
 
@@ -177,27 +163,32 @@ const UserDashboard = () => {
   }, []);
 
   // Compute live unread count
-  const unreadCount = notifications.filter((n) => n.status === 'Unread').length;
+  const unreadCount = notifications.filter((n) => n.status === "Unread").length;
 
   const handleMarkAllRead = async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, status: 'Read' })));
+    setNotifications((prev) => prev.map((n) => ({ ...n, status: "Read" })));
     try {
       await markAllNotificationsRead();
     } catch (err) {
-      console.warn('Failed to mark all read on server:', err.message);
+      console.warn("Failed to mark all read on server:", err.message);
     }
   };
 
   const handleToggleRead = async (id) => {
     const target = notifications.find((n) => n._id === id || n.id === id);
-    if (target && target.status === 'Unread') {
+    if (target && target.status === "Unread") {
       setNotifications((prev) =>
-        prev.map((n) => (n._id === id || n.id === id ? { ...n, status: 'Read' } : n))
+        prev.map((n) =>
+          n._id === id || n.id === id ? { ...n, status: "Read" } : n,
+        ),
       );
       try {
         await markNotificationRead(target._id || id);
       } catch (err) {
-        console.warn('Failed to mark notification read on server:', err.message);
+        console.warn(
+          "Failed to mark notification read on server:",
+          err.message,
+        );
       }
     }
   };
@@ -211,74 +202,74 @@ const UserDashboard = () => {
         await deleteNotification(target._id);
       }
     } catch (err) {
-      console.warn('Failed to delete notification on server:', err.message);
+      console.warn("Failed to delete notification on server:", err.message);
     }
   };
 
   const getNotificationIconInfo = (notif) => {
     switch (notif.type) {
-      case 'Welcome':
+      case "Welcome":
         return {
           icon: Star,
-          color: 'bg-emerald-500/10 text-emerald-600',
-          badgeColor: 'bg-emerald-100 text-emerald-800',
-          label: 'Welcome',
+          color: "bg-emerald-500/10 text-emerald-600",
+          badgeColor: "bg-emerald-100 text-emerald-800",
+          label: "Welcome",
         };
-      case 'ShelterApplication':
-        if (notif.title?.toLowerCase().includes('approved')) {
+      case "ShelterApplication":
+        if (notif.title?.toLowerCase().includes("approved")) {
           return {
             icon: CheckCircle2,
-            color: 'bg-emerald-500/10 text-emerald-600',
-            badgeColor: 'bg-emerald-100 text-emerald-800',
-            label: 'Shelter Approved',
+            color: "bg-emerald-500/10 text-emerald-600",
+            badgeColor: "bg-emerald-100 text-emerald-800",
+            label: "Shelter Approved",
           };
-        } else if (notif.title?.toLowerCase().includes('rejected')) {
+        } else if (notif.title?.toLowerCase().includes("rejected")) {
           return {
             icon: AlertCircle,
-            color: 'bg-rose-500/10 text-rose-600',
-            badgeColor: 'bg-rose-100 text-rose-800',
-            label: 'Shelter Rejected',
+            color: "bg-rose-500/10 text-rose-600",
+            badgeColor: "bg-rose-100 text-rose-800",
+            label: "Shelter Rejected",
           };
         }
         return {
           icon: Building2,
-          color: 'bg-blue-500/10 text-blue-600',
-          badgeColor: 'bg-blue-100 text-blue-800',
-          label: 'Shelter Application',
+          color: "bg-blue-500/10 text-blue-600",
+          badgeColor: "bg-blue-100 text-blue-800",
+          label: "Shelter Application",
         };
-      case 'Rescue':
+      case "Rescue":
         return {
           icon: AlertTriangle,
-          color: 'bg-amber-500/10 text-amber-600',
-          badgeColor: 'bg-amber-100 text-amber-800',
-          label: 'Rescue',
+          color: "bg-amber-500/10 text-amber-600",
+          badgeColor: "bg-amber-100 text-amber-800",
+          label: "Rescue",
         };
-      case 'Adoption':
+      case "Adoption":
         return {
           icon: Heart,
-          color: 'bg-rose-500/10 text-rose-600',
-          badgeColor: 'bg-rose-100 text-rose-800',
-          label: 'Adoption',
+          color: "bg-rose-500/10 text-rose-600",
+          badgeColor: "bg-rose-100 text-rose-800",
+          label: "Adoption",
         };
-      case 'Alert':
+      case "Alert":
         return {
           icon: AlertCircle,
-          color: 'bg-rose-500/10 text-rose-600',
-          badgeColor: 'bg-rose-100 text-rose-800',
-          label: 'Alert',
+          color: "bg-rose-500/10 text-rose-600",
+          badgeColor: "bg-rose-100 text-rose-800",
+          label: "Alert",
         };
       default:
         return {
           icon: Bell,
-          color: 'bg-slate-100 text-slate-600',
-          badgeColor: 'bg-slate-100 text-slate-700',
-          label: 'General',
+          color: "bg-slate-100 text-slate-600",
+          badgeColor: "bg-slate-100 text-slate-700",
+          label: "General",
         };
     }
   };
 
   const formatNotificationTime = (dateStr) => {
-    if (!dateStr) return 'Just now';
+    if (!dateStr) return "Just now";
     const date = new Date(dateStr);
     const now = new Date();
     const diffMs = now - date;
@@ -286,12 +277,16 @@ const UserDashboard = () => {
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-    if (diffMins < 1) return 'Just now';
+    if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays === 1) return 'Yesterday';
+    if (diffDays === 1) return "Yesterday";
     if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    return date.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   };
 
   // Live Rescue Reports Data
@@ -299,18 +294,18 @@ const UserDashboard = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate("/login");
   };
 
   const getFirstName = () => {
-    return (user?.fullName || 'User').split(' ')[0];
+    return (user?.fullName || "User").split(" ")[0];
   };
 
   const handleReportSubmit = async (e) => {
     e.preventDefault();
     const profileStatus = checkProfileCompletion(user);
     if (!profileStatus.isComplete) {
-      setProfileModalAction('Report Animal');
+      setProfileModalAction("Report Animal");
       setProfileModalOpen(true);
       return;
     }
@@ -324,10 +319,11 @@ const UserDashboard = () => {
         animalType,
         animalCondition,
         description,
-        locationAddress: locationInput || 'Detected Location',
+        locationAddress: locationInput || "Detected Location",
         latitude: latitude || undefined,
         longitude: longitude || undefined,
         district: district || undefined,
+        image: photoFile || undefined,
       });
 
       if (res?.success && res.request) {
@@ -335,21 +331,25 @@ const UserDashboard = () => {
         setRescueReports((prev) => [res.request, ...prev]);
       }
     } catch (err) {
-      console.warn('Backend rescue request creation failed:', err.message);
+      console.warn("Backend rescue request creation failed:", err.message);
     } finally {
       setSubmittingReport(false);
     }
 
-    const reportId = createdRecord?.rescueRequestId || 'RQ-' + Math.floor(1000 + Math.random() * 9000);
+    const reportId =
+      createdRecord?.rescueRequestId ||
+      "RQ-" + Math.floor(1000 + Math.random() * 9000);
+    setLatestSubmittedReportId(reportId);
+
     if (!createdRecord) {
       const fallbackReport = {
-        _id: 'local-' + Date.now(),
+        _id: "local-" + Date.now(),
         rescueRequestId: reportId,
         animalType,
         animalCondition,
-        status: 'Reported',
-        rescueStage: 'Broadcasted',
-        locationAddress: locationInput || 'Detected Location',
+        status: "Reported",
+        rescueStage: "Broadcasted",
+        locationAddress: locationInput || "Detected Location",
         createdAt: new Date().toISOString(),
       };
       setRescueReports((prev) => [fallbackReport, ...prev]);
@@ -359,39 +359,34 @@ const UserDashboard = () => {
 
     try {
       await createNotification({
-        title: 'Rescue Report Submitted 🚨',
+        title: "Rescue Report Submitted 🚨",
         message: `Your report for a ${animalCondition} ${animalType} has been successfully filed under ${reportId}. Nearby rescue teams have been alerted.`,
-        type: 'Rescue',
-        priority: 'High',
+        type: "Rescue",
+        priority: "High",
         metadata: { reportId },
       });
       loadNotifications();
     } catch (err) {
-      console.warn('Failed to dispatch rescue notification:', err.message);
+      console.warn("Failed to dispatch rescue notification:", err.message);
     }
-
-    setTimeout(() => {
-      setSubmitSuccess(false);
-      setActiveTab('Dashboard');
-    }, 1800);
   };
 
   const filteredPets = adoptionPets.filter((pet) => {
-    const isHealthy = !pet.healthCondition || pet.healthCondition === 'Healthy';
-    const isAvailable = pet.status === 'Available' || pet.status === 'Rescued';
+    const isHealthy = !pet.healthCondition || pet.healthCondition === "Healthy";
+    const isAvailable = pet.status === "Available" || pet.status === "Rescued";
     if (!isHealthy || !isAvailable) return false;
 
-    const name = pet.name || '';
-    const breed = pet.breed || '';
-    const species = pet.species || pet.category || '';
+    const name = pet.name || "";
+    const breed = pet.breed || "";
+    const species = pet.species || pet.category || "";
     const matchesSearch =
       name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       breed.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory =
-      petCategory === 'All' ||
-      petCategory === 'All Pets' ||
-      (petCategory === 'Dogs' && species === 'Dog') ||
-      (petCategory === 'Cats' && species === 'Cat') ||
+      petCategory === "All" ||
+      petCategory === "All Pets" ||
+      (petCategory === "Dogs" && species === "Dog") ||
+      (petCategory === "Cats" && species === "Cat") ||
       species === petCategory;
     return matchesSearch && matchesCategory;
   });
@@ -421,7 +416,7 @@ const UserDashboard = () => {
           setActiveTab={handleTabChange}
           sidebarOpen={sidebarOpen}
           toggleSidebar={toggleSidebar}
-          handleOpenShelterTab={() => handleTabChange('Register Shelter')}
+          handleOpenShelterTab={() => handleTabChange("Register Shelter")}
           setSubmitSuccess={setSubmitSuccess}
           handleLogout={handleLogout}
           user={user}
@@ -429,158 +424,171 @@ const UserDashboard = () => {
 
         {/* Dashboard Panels */}
         <main className="flex-1 overflow-y-auto p-3.5 sm:p-6 md:p-8">
-          {/* Tab 1: Dashboard Home */}
-          {activeTab === 'Dashboard' && (
-            <Dashboard
-              getFirstName={getFirstName}
-              rescueReports={rescueReports}
-              sheltersList={sheltersList}
-              setActiveTab={handleTabChange}
-              user={user}
-              onNavigateToProfile={handleGoToProfile}
-              onTrackRescue={(reqId) => {
-                setActiveTrackingId(reqId);
-                setTrackingModalOpen(true);
-              }}
-            />
-          )}
-
-          {/* Tab 2: Report Animal Form */}
-          {activeTab === 'Report Animal' && (
-            <RescueRequest
-              animalType={animalType}
-              setAnimalType={setAnimalType}
-              animalCondition={animalCondition}
-              setAnimalCondition={setAnimalCondition}
-              description={description}
-              setDescription={setDescription}
-              locationInput={locationInput}
-              setLocationInput={setLocationInput}
-              latitude={latitude}
-              setLatitude={setLatitude}
-              longitude={longitude}
-              setLongitude={setLongitude}
-              district={district}
-              setDistrict={setDistrict}
-              hasPhoto={hasPhoto}
-              setHasPhoto={setHasPhoto}
-              submitSuccess={submitSuccess}
-              submitting={submittingReport}
-              handleReportSubmit={handleReportSubmit}
-              user={user}
-              onNavigateToProfile={handleGoToProfile}
-              onOpenProfileModal={() => {
-                setProfileModalAction('Report Animal');
-                setProfileModalOpen(true);
-              }}
-            />
-          )}
-
-          {/* Tab 3: Rescue & Shelter Map */}
-          {activeTab === 'Rescue & Shelter Map' && (
-            <RescueShelterMap />
-          )}
-
-          {/* Tab 4: Adopt a Pet List */}
-          {activeTab === 'Adopt a Pet' && (
-            <Adoption
-              searchTerm={searchTerm}
-              setSearchTerm={setSearchTerm}
-              petCategory={petCategory}
-              setPetCategory={setPetCategory}
-              filteredPets={filteredPets}
-              navigate={navigate}
-              user={user}
-              onRequireProfile={handleRequireProfile}
-              onNavigateToProfile={handleGoToProfile}
-            />
-          )}
-
-          {/* Tab 5: Register Shelter */}
-          {activeTab === 'Register Shelter' && (
-            <ShelterRegister
-              onApplicationSubmitted={() => loadNotifications()}
-              onRequireProfile={handleRequireProfile}
-              onNavigateToProfile={handleGoToProfile}
-              user={user}
-            />
-          )}
-
-          {/* Tab 6: Register Rescue Team */}
-          {activeTab === 'Register Rescue Team' && (
-            <RescueTeamRegister
-              onApplicationSubmitted={() => loadNotifications()}
-              onRequireProfile={handleRequireProfile}
-              onNavigateToProfile={handleGoToProfile}
-              user={user}
-            />
-          )}
-
-          {/* Tab 7: Volunteer Program */}
-          {activeTab === 'Volunteer' && (
-            <VolunteerRegister
-              onApplicationSubmitted={() => loadNotifications()}
-              onRequireProfile={handleRequireProfile}
-              onNavigateToProfile={handleGoToProfile}
-              user={user}
-            />
-          )}
-
-          {/* Tab 8: Veterinary Staff Application & Status */}
-          {activeTab === 'Join Vet Staff' && (
-            <VeterinaryRegister
-              onApplicationSubmitted={() => loadNotifications()}
-              onRequireProfile={handleRequireProfile}
-              onNavigateToProfile={handleGoToProfile}
-              user={user}
-            />
-          )}
-
-          {/* Tab 9: Notifications List */}
-          {activeTab === 'Notifications' && (
-            <Notifications
-              notifications={notifications}
-              notificationsLoading={notificationsLoading}
-              loadNotifications={loadNotifications}
-              unreadCount={unreadCount}
-              handleMarkAllRead={handleMarkAllRead}
-              handleToggleRead={handleToggleRead}
-              handleDeleteNotification={handleDeleteNotification}
-              getNotificationIconInfo={getNotificationIconInfo}
-              formatNotificationTime={formatNotificationTime}
-            />
-          )}
-
-          {/* Tab 10: My Profile View */}
-          {activeTab === 'My Profile' && (
-            <Profile
-              rescueReports={rescueReports}
-              initialEditMode={initialProfileEdit}
-              onEditModeReset={() => setInitialProfileEdit(false)}
-            />
-          )}
-
-          {/* Placeholders for Other Tabs */}
-          {activeTab !== 'Dashboard' &&
-            activeTab !== 'Report Animal' &&
-            activeTab !== 'Rescue & Shelter Map' &&
-            activeTab !== 'Adopt a Pet' &&
-            activeTab !== 'Register Shelter' &&
-            activeTab !== 'Register Rescue Team' &&
-            activeTab !== 'Volunteer' &&
-            activeTab !== 'Join Vet Staff' &&
-            activeTab !== 'Notifications' &&
-            activeTab !== 'My Profile' && (
-              <div className="max-w-xl mx-auto py-16 text-center space-y-4">
-                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 mx-auto">
-                  <Info className="w-8 h-8" />
-                </div>
-                <h2 className="text-xl font-bold text-slate-900">{activeTab} Page</h2>
-                <p className="text-slate-500 text-sm max-w-sm mx-auto font-medium">
-                  This tab is under development and will be connected to the respective microservice logic soon.
-                </p>
-              </div>
+          {/* Dashboard Panels — keyed by activeTab so React fully unmounts/remounts
+            the previous panel, triggering the CSS fade-in on every switch */}
+          <div key={activeTab} className="tab-panel-enter h-full">
+            {/* Tab 1: Dashboard Home */}
+            {activeTab === "Dashboard" && (
+              <Dashboard
+                getFirstName={getFirstName}
+                rescueReports={rescueReports}
+                sheltersList={sheltersList}
+                setActiveTab={handleTabChange}
+                user={user}
+                onNavigateToProfile={handleGoToProfile}
+                onTrackRescue={(reqId) => {
+                  setActiveTrackingId(reqId);
+                  setTrackingModalOpen(true);
+                }}
+              />
             )}
+
+            {/* Tab 2: Report Animal Form */}
+            {activeTab === "Report Animal" && (
+              <RescueRequest
+                animalType={animalType}
+                setAnimalType={setAnimalType}
+                animalCondition={animalCondition}
+                setAnimalCondition={setAnimalCondition}
+                description={description}
+                setDescription={setDescription}
+                locationInput={locationInput}
+                setLocationInput={setLocationInput}
+                latitude={latitude}
+                setLatitude={setLatitude}
+                longitude={longitude}
+                setLongitude={setLongitude}
+                district={district}
+                setDistrict={setDistrict}
+                photoFile={photoFile}
+                setPhotoFile={setPhotoFile}
+                submitSuccess={submitSuccess}
+                setSubmitSuccess={setSubmitSuccess}
+                submitting={submittingReport}
+                handleReportSubmit={handleReportSubmit}
+                user={user}
+                onNavigateToProfile={handleGoToProfile}
+                onOpenProfileModal={() => {
+                  setProfileModalAction("Report Animal");
+                  setProfileModalOpen(true);
+                }}
+                rescueReports={rescueReports}
+                onTrackRescue={(reqId) => {
+                  setActiveTrackingId(reqId);
+                  setTrackingModalOpen(true);
+                }}
+                onRefreshReports={loadDashboardData}
+                latestSubmittedReportId={latestSubmittedReportId}
+              />
+            )}
+
+            {/* Tab 3: Rescue & Shelter Map */}
+            {activeTab === "Rescue & Shelter Map" && <RescueShelterMap />}
+
+            {/* Tab 4: Adopt a Pet List */}
+            {activeTab === "Adopt a Pet" && (
+              <Adoption
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                petCategory={petCategory}
+                setPetCategory={setPetCategory}
+                filteredPets={filteredPets}
+                navigate={navigate}
+                user={user}
+                onRequireProfile={handleRequireProfile}
+                onNavigateToProfile={handleGoToProfile}
+              />
+            )}
+
+            {/* Tab 5: Register Shelter */}
+            {activeTab === "Register Shelter" && (
+              <ShelterRegister
+                onApplicationSubmitted={() => loadNotifications()}
+                onRequireProfile={handleRequireProfile}
+                onNavigateToProfile={handleGoToProfile}
+                user={user}
+              />
+            )}
+
+            {/* Tab 6: Register Rescue Team */}
+            {activeTab === "Register Rescue Team" && (
+              <RescueTeamRegister
+                onApplicationSubmitted={() => loadNotifications()}
+                onRequireProfile={handleRequireProfile}
+                onNavigateToProfile={handleGoToProfile}
+                user={user}
+              />
+            )}
+
+            {/* Tab 7: Volunteer Program */}
+            {activeTab === "Volunteer" && (
+              <VolunteerRegister
+                onApplicationSubmitted={() => loadNotifications()}
+                onRequireProfile={handleRequireProfile}
+                onNavigateToProfile={handleGoToProfile}
+                user={user}
+              />
+            )}
+
+            {/* Tab 8: Veterinary Staff Application & Status */}
+            {activeTab === "Join Vet Staff" && (
+              <VeterinaryRegister
+                onApplicationSubmitted={() => loadNotifications()}
+                onRequireProfile={handleRequireProfile}
+                onNavigateToProfile={handleGoToProfile}
+                user={user}
+              />
+            )}
+
+            {/* Tab 9: Notifications List */}
+            {activeTab === "Notifications" && (
+              <Notifications
+                notifications={notifications}
+                notificationsLoading={notificationsLoading}
+                loadNotifications={loadNotifications}
+                unreadCount={unreadCount}
+                handleMarkAllRead={handleMarkAllRead}
+                handleToggleRead={handleToggleRead}
+                handleDeleteNotification={handleDeleteNotification}
+                getNotificationIconInfo={getNotificationIconInfo}
+                formatNotificationTime={formatNotificationTime}
+              />
+            )}
+
+            {/* Tab 10: My Profile View */}
+            {activeTab === "My Profile" && (
+              <Profile
+                rescueReports={rescueReports}
+                initialEditMode={initialProfileEdit}
+                onEditModeReset={() => setInitialProfileEdit(false)}
+              />
+            )}
+
+            {/* Placeholders for Other Tabs */}
+            {activeTab !== "Dashboard" &&
+              activeTab !== "Report Animal" &&
+              activeTab !== "Rescue & Shelter Map" &&
+              activeTab !== "Adopt a Pet" &&
+              activeTab !== "Register Shelter" &&
+              activeTab !== "Register Rescue Team" &&
+              activeTab !== "Volunteer" &&
+              activeTab !== "Join Vet Staff" &&
+              activeTab !== "Notifications" &&
+              activeTab !== "My Profile" && (
+                <div className="max-w-xl mx-auto py-16 text-center space-y-4">
+                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 mx-auto">
+                    <Info className="w-8 h-8" />
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    {activeTab} Page
+                  </h2>
+                  <p className="text-slate-500 text-sm max-w-sm mx-auto font-medium">
+                    This tab is under development and will be connected to the
+                    respective microservice logic soon.
+                  </p>
+                </div>
+              )}
+          </div>
         </main>
       </div>
 
@@ -589,6 +597,7 @@ const UserDashboard = () => {
         isOpen={trackingModalOpen}
         onClose={() => setTrackingModalOpen(false)}
         rescueRequestId={activeTrackingId}
+        showTeamResponses={true}
       />
 
       {/* Mandatory Profile Completion Modal for Public Users */}

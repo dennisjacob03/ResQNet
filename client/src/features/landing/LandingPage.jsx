@@ -140,6 +140,7 @@ const LandingPage = () => {
               <>
                 <Link
                   to="/login"
+                  aria-label="Login"
                   className="px-4 py-2 text-sm font-bold text-[#151c28] hover:text-[#237737] transition-colors"
                 >
                   Sign In
@@ -206,6 +207,7 @@ const LandingPage = () => {
               <>
                 <Link
                   to="/login"
+                  aria-label="Login"
                   onClick={() => setMobileMenuOpen(false)}
                   className="w-full text-center px-4 py-2.5 rounded-xl font-bold text-[#151c28] border border-slate-200 hover:bg-slate-50"
                 >

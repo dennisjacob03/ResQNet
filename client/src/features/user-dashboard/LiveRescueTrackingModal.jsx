@@ -11,9 +11,28 @@ import {
   Truck,
   ArrowRight,
   ShieldCheck,
+  Users,
+  Radio,
+  UserCheck,
+  XCircle,
+  Star,
 } from 'lucide-react';
 import InteractiveMap from '../../components/common/InteractiveMap';
 import { getRescueRequestById } from '../../services/rescueRequestService';
+
+// Display config for each candidate team response status
+const TEAM_STATUS_META = {
+  Assigned: { label: 'Assigned', order: 0, badge: 'bg-emerald-600 text-white border-emerald-600', dot: 'bg-emerald-500' },
+  Accepted: { label: 'Accepted', order: 1, badge: 'bg-blue-50 text-blue-800 border-blue-200', dot: 'bg-blue-500' },
+  Backup: { label: 'Accepted · Backup', order: 2, badge: 'bg-indigo-50 text-indigo-800 border-indigo-200', dot: 'bg-indigo-500' },
+  Notified: { label: 'Awaiting Response', order: 3, badge: 'bg-amber-50 text-amber-800 border-amber-200', dot: 'bg-amber-400 animate-pulse' },
+  Declined: { label: 'Declined', order: 4, badge: 'bg-slate-100 text-slate-500 border-slate-200', dot: 'bg-slate-300' },
+};
+
+const formatResponseTime = (value) =>
+  value
+    ? new Date(value).toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : null;
 
 const STAGES = [
   { key: 'Broadcasted', label: 'Dispatched', desc: 'Dispatched to nearby rescue teams' },
@@ -32,7 +51,7 @@ const getStageIndex = (stage) => {
   return 0;
 };
 
-const LiveRescueTrackingModal = ({ isOpen, onClose, rescueRequestId }) => {
+const LiveRescueTrackingModal = ({ isOpen, onClose, rescueRequestId, showTeamResponses = false }) => {
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -87,6 +106,28 @@ const LiveRescueTrackingModal = ({ isOpen, onClose, rescueRequestId }) => {
     longitude: request.destinationShelterLocation.longitude,
     title: request.destinationShelterName || 'Shelter Facility',
   } : null;
+
+  // Broadcast recipients, sorted: assigned -> accepted -> backup -> pending -> declined, then by distance
+  const candidateTeams = [...(request?.candidateTeams || [])].sort((a, b) => {
+    const orderA = TEAM_STATUS_META[a.status]?.order ?? 9;
+    const orderB = TEAM_STATUS_META[b.status]?.order ?? 9;
+    if (orderA !== orderB) return orderA - orderB;
+    return (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity);
+  });
+  const teamCounts = candidateTeams.reduce(
+    (acc, team) => {
+      const status = team.status || 'Notified';
+      if (['Accepted', 'Backup', 'Assigned'].includes(status)) acc.accepted += 1;
+      if (status === 'Declined') acc.declined += 1;
+      if (status === 'Notified') acc.pending += 1;
+      return acc;
+    },
+    { accepted: 0, declined: 0, pending: 0 },
+  );
+  const isAssignedTeam = (team) =>
+    team.status === 'Assigned' ||
+    (request?.assignedRescueTeamId &&
+      String(request.assignedRescueTeamId?._id || request.assignedRescueTeamId) === String(team.teamObjectId));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in">
@@ -259,6 +300,118 @@ const LiveRescueTrackingModal = ({ isOpen, onClose, rescueRequestId }) => {
               )}
             </div>
           </div>
+
+          {/* Rescue Team Broadcast Responses */}
+          {showTeamResponses && (
+            <div className="border border-slate-200/80 rounded-2xl overflow-hidden">
+              <div className="p-4 bg-slate-50/70 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-[#237737]" /> Rescue Team Responses
+                  </h4>
+                  <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+                    Every team that received this broadcast and how they responded
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { label: 'Notified', value: candidateTeams.length, icon: Radio, cls: 'bg-white text-slate-700 border-slate-200' },
+                    { label: 'Accepted', value: teamCounts.accepted, icon: UserCheck, cls: 'bg-blue-50 text-blue-800 border-blue-200' },
+                    { label: 'Pending', value: teamCounts.pending, icon: Clock, cls: 'bg-amber-50 text-amber-800 border-amber-200' },
+                    { label: 'Declined', value: teamCounts.declined, icon: XCircle, cls: 'bg-slate-100 text-slate-500 border-slate-200' },
+                  ].map(({ label, value, icon: Icon, cls }) => (
+                    <span
+                      key={label}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-black ${cls}`}
+                    >
+                      <Icon className="w-3 h-3" /> {value} {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {candidateTeams.length > 0 ? (
+                <ul className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+                  {candidateTeams.map((team, idx) => {
+                    const status = team.status || 'Notified';
+                    const assigned = isAssignedTeam(team);
+                    const meta = assigned
+                      ? TEAM_STATUS_META.Assigned
+                      : TEAM_STATUS_META[status] || TEAM_STATUS_META.Notified;
+                    const respondedAt = formatResponseTime(team.responseTime);
+                    const vehicle = [team.vehicleType, team.vehicleNumber].filter(Boolean).join(' · ');
+
+                    return (
+                      <li
+                        key={team.teamObjectId || team.teamId || team.rescueTeamNumber || idx}
+                        className={`p-3.5 flex items-start sm:items-center justify-between gap-3 transition ${
+                          assigned ? 'bg-emerald-50/60' : 'hover:bg-slate-50/60'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div
+                            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                              assigned ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {assigned ? <Star className="w-4 h-4" /> : <Truck className="w-4 h-4" />}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-extrabold text-slate-900 truncate">
+                                {team.rescueTeamName || team.rescueTeamNumber || 'Rescue Team'}
+                              </span>
+                              {team.rescueTeamNumber && team.rescueTeamName !== team.rescueTeamNumber && (
+                                <span className="font-mono text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                  {team.rescueTeamNumber}
+                                </span>
+                              )}
+                              {assigned && (
+                                <span className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">
+                                  Responding Unit
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-semibold mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-rose-400" />
+                                {team.distanceKm != null ? `${team.distanceKm} km away` : 'Distance unavailable'}
+                              </span>
+                              {vehicle && <span>• {vehicle}</span>}
+                              {team.phone && (
+                                <a href={`tel:${team.phone}`} className="inline-flex items-center gap-1 text-[#237737] hover:underline">
+                                  <Phone className="w-3 h-3" /> {team.phone}
+                                </a>
+                              )}
+                            </p>
+                            {status === 'Declined' && team.declineReason && (
+                              <p className="text-[11px] text-rose-600 font-medium mt-1">Reason: {team.declineReason}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-black ${meta.badge}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${assigned ? 'bg-white' : meta.dot}`} />
+                            {meta.label}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-semibold">
+                            {respondedAt ? `Responded ${respondedAt}` : 'No response yet'}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <div className="p-6 text-center text-xs text-slate-400 font-medium">
+                  No rescue teams were in range when this request was broadcast.
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Interactive Live Map */}
           <div>

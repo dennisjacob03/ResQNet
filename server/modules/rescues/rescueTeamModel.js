@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const rescueTeamSchema = new mongoose.Schema(
   {
@@ -8,40 +8,62 @@ const rescueTeamSchema = new mongoose.Schema(
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'User ID is required'],
+      ref: "User",
+      required: [true, "User ID is required"],
     },
+    teamLeadId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: [true, "Team lead ID is required"],
+    },
+    rescueTeamApplicationId: {
+      type: String,
+      required: [true, "Rescue team application ID is required"],
+      index: true,
+    },
+    rescueTeamEmail: {
+      type: String,
+      required: [true, "Rescue team email is required"],
+      trim: true,
+      lowercase: true,
+    },
+    address: { type: String, default: "", trim: true },
+    pincode: { type: String, default: "", trim: true },
+    state: { type: String, default: "", trim: true },
+    district: { type: String, default: "", trim: true },
+    city: { type: String, default: "", trim: true },
+    coverageZone: { type: String, default: "", trim: true },
     rescueTeamNumber: {
       type: String,
       unique: true,
     },
     vehicleNumber: {
       type: String,
-      required: [true, 'Vehicle number is required'],
+      required: [true, "Vehicle number is required"],
       trim: true,
       uppercase: true,
     },
     vehicleType: {
       type: String,
       enum: {
-        values: ['Van', 'Ambulance', 'Bike', 'Car', 'Other'],
-        message: '{VALUE} is not a valid vehicle type',
+        values: ["Van", "Ambulance", "Bike", "Car", "Other"],
+        message: "{VALUE} is not a valid vehicle type",
       },
-      required: [true, 'Vehicle type is required'],
+      required: [true, "Vehicle type is required"],
     },
-    teamName: {
+    rescueTeamName: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     contactPhone: {
       type: String,
-      default: '',
+      default: "",
       trim: true,
     },
     operatingDistrict: {
       type: String,
-      required: [true, 'Operating district is required'],
+      required: [true, "Operating district is required"],
       trim: true,
     },
     latitude: {
@@ -60,30 +82,30 @@ const rescueTeamSchema = new mongoose.Schema(
     availability: {
       type: String,
       enum: {
-        values: ['Available', 'Busy', 'Offline'],
-        message: '{VALUE} is not a valid availability status',
+        values: ["Available", "Busy", "Offline"],
+        message: "{VALUE} is not a valid availability status",
       },
-      default: 'Available',
+      default: "Available",
     },
     status: {
       type: String,
       enum: {
-        values: ['Active', 'Inactive'],
-        message: '{VALUE} is not a valid status',
+        values: ["Active", "Inactive"],
+        message: "{VALUE} is not a valid status",
       },
-      default: 'Active',
+      default: "Active",
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Auto-generate teamId and rescueTeamNumber before save
-rescueTeamSchema.pre('save', async function () {
+rescueTeamSchema.pre("save", async function () {
   if (!this.teamId || !this.rescueTeamNumber) {
     const records = await mongoose
-      .model('RescueTeam')
+      .model("RescueTeam")
       .find({}, { teamId: 1 })
       .lean();
 
@@ -101,12 +123,12 @@ rescueTeamSchema.pre('save', async function () {
     const nextSeq = maxSeq + 1;
 
     if (!this.teamId) {
-      this.teamId = `RT-${String(nextSeq).padStart(4, '0')}`;
+      this.teamId = `RT-${String(nextSeq).padStart(4, "0")}`;
     }
     if (!this.rescueTeamNumber) {
-      this.rescueTeamNumber = `RTN${String(nextSeq).padStart(3, '0')}`;
+      this.rescueTeamNumber = `RTN${String(nextSeq).padStart(3, "0")}`;
     }
   }
 });
 
-module.exports = mongoose.model('RescueTeam', rescueTeamSchema);
+module.exports = mongoose.model("RescueTeam", rescueTeamSchema);

@@ -39,12 +39,13 @@ import AddCageModal from './AddCageModal';
 import AddAnimalModal from './AddAnimalModal';
 import AnimalDetailsModal from './AnimalDetailsModal';
 import CageDetailsModal from './CageDetailsModal';
+import { useDashboardTabNavigation } from '../../utils/dashboardNavigation';
 
 const ShelterDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState('Shelter Dashboard');
+  const [activeTab, setActiveTab] = useDashboardTabNavigation(user?.role || 'Shelter');
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     const saved = localStorage.getItem('resqnet_sidebar_open');
     return saved !== null ? saved === 'true' : true;
