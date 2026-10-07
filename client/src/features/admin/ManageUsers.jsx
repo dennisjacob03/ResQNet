@@ -11,6 +11,7 @@ import {
   UserPlus,
   Lock,
 } from 'lucide-react';
+import { getMediaUrl } from '../../config/api';
 
 const ManageUsers = ({
   usersList = [],
@@ -244,11 +245,7 @@ const ManageUsers = ({
                         <div className="flex items-center gap-3">
                           {u.profilePic ? (
                             <img
-                              src={
-                                u.profilePic.startsWith('/uploads')
-                                  ? `http://localhost:5000${u.profilePic}`
-                                  : u.profilePic
-                              }
+                              src={getMediaUrl(u.profilePic)}
                               alt={displayName}
                               className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0"
                             />

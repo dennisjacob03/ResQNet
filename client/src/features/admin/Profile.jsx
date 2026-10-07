@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShieldCheck } from 'lucide-react';
+import { getMediaUrl } from '../../config/api';
 
 const Profile = ({ user }) => {
   const profileFields = [
@@ -17,11 +18,7 @@ const Profile = ({ user }) => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
           {user?.profilePic ? (
             <img
-              src={
-                user.profilePic.startsWith('/uploads')
-                  ? `http://localhost:5000${user.profilePic}`
-                  : user.profilePic
-              }
+              src={getMediaUrl(user.profilePic)}
               alt={user?.fullName || 'Administrator'}
               className="w-20 h-20 rounded-3xl object-cover border border-slate-200 shadow-md shrink-0"
             />

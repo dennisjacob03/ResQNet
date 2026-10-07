@@ -1,5 +1,6 @@
 import React from 'react';
 import { MapPin } from 'lucide-react';
+import { getMediaUrl } from '../../config/api';
 
 const Profile = ({ user, shelterData, capacities = [], cages = [] }) => {
   return (
@@ -17,11 +18,7 @@ const Profile = ({ user, shelterData, capacities = [], cages = [] }) => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
           {user?.profilePic ? (
             <img
-              src={
-                user.profilePic.startsWith('/uploads')
-                  ? `http://localhost:5000${user.profilePic}`
-                  : user.profilePic
-              }
+              src={getMediaUrl(user.profilePic)}
               alt={user?.fullName || 'Shelter Manager'}
               className="w-20 h-20 rounded-3xl object-cover border border-slate-200 shadow-md shrink-0"
             />

@@ -63,9 +63,6 @@ const Sidebar = ({
           <div className="md:hidden px-4 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
             <div className="flex items-center gap-2">
               <img src="/logo.png" alt="ResQNet Logo" className="h-7 w-auto object-contain" />
-              <span className="text-[11px] font-black text-[#237737] uppercase tracking-wider">
-                Veterinary Clinic
-              </span>
             </div>
             <button
               onClick={toggleSidebar}

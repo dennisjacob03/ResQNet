@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { User, LogOut, ChevronDown, Bell } from 'lucide-react';
 import { checkProfileCompletion } from '../../utils/profileUtils';
+import { getMediaUrl } from '../../config/api';
 
 const UserProfileDropdown = ({
   onOpenProfile,
@@ -94,11 +95,7 @@ const UserProfileDropdown = ({
   const displayName = user?.fullName || user?.name || 'User';
   const avatarLetter = (displayName || 'U')[0].toUpperCase();
 
-  const profileImageUrl = user?.profilePic
-    ? user.profilePic.startsWith('/uploads')
-      ? `http://localhost:5000${user.profilePic}`
-      : user.profilePic
-    : null;
+  const profileImageUrl = user?.profilePic ? getMediaUrl(user.profilePic) : null;
 
   return (
     <div

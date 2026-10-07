@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import AddressForm from '../../components/address/AddressForm';
 import { checkProfileCompletion } from '../../utils/profileUtils';
+import { API_BASE_URL, getMediaUrl } from '../../config/api';
 
 const Profile = ({ rescueReports = [], initialEditMode = false, onEditModeReset }) => {
   const {
@@ -28,11 +29,7 @@ const Profile = ({ rescueReports = [], initialEditMode = false, onEditModeReset 
   const [profileEmail, setProfileEmail] = useState(user?.email || '');
   const [profilePhone, setProfilePhone] = useState(user?.phoneNumber || '');
   const [profilePicUrl, setProfilePicUrl] = useState(
-    user?.profilePic
-      ? user.profilePic.startsWith('/uploads')
-        ? `http://localhost:5000${user.profilePic}`
-        : user.profilePic
-      : ''
+    user?.profilePic ? getMediaUrl(user.profilePic) : ''
   );
   const [profilePicFile, setProfilePicFile] = useState(null);
   const [profileDob, setProfileDob] = useState(user?.dob ? user.dob.slice(0, 10) : '');
@@ -82,11 +79,7 @@ const Profile = ({ rescueReports = [], initialEditMode = false, onEditModeReset 
       setProfileEmail(user.email || '');
       setProfilePhone(user.phoneNumber || '');
       setProfilePicUrl(
-        user.profilePic
-          ? user.profilePic.startsWith('/uploads')
-            ? `http://localhost:5000${user.profilePic}`
-            : user.profilePic
-          : ''
+        user.profilePic ? getMediaUrl(user.profilePic) : ''
       );
       setProfileDob(user.dob ? user.dob.slice(0, 10) : '');
       setProfileAddress(user.address || '');
@@ -192,7 +185,7 @@ const Profile = ({ rescueReports = [], initialEditMode = false, onEditModeReset 
 
     setPasswordLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/auth/change-password', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/change-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -786,11 +779,7 @@ const Profile = ({ rescueReports = [], initialEditMode = false, onEditModeReset 
                 setProfileName(user?.fullName || '');
                 setProfilePhone(user?.phoneNumber || '');
                 setProfilePicUrl(
-                  user?.profilePic
-                    ? user.profilePic.startsWith('/uploads')
-                      ? `http://localhost:5000${user.profilePic}`
-                      : user.profilePic
-                    : ''
+                  user?.profilePic ? getMediaUrl(user.profilePic) : ''
                 );
                 setProfilePicFile(null);
                 setProfileDob(user?.dob ? user.dob.slice(0, 10) : '');

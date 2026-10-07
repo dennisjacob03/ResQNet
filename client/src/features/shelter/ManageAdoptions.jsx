@@ -30,6 +30,7 @@ import {
   submitShelterVisitReport,
 } from '../../services/adoptionService';
 import ShelterVisitReportModal from './ShelterVisitReportModal';
+import { getMediaUrl } from '../../config/api';
 
 const ManageAdoptions = () => {
   const [applications, setApplications] = useState([]);
@@ -512,11 +513,7 @@ const ManageAdoptions = () => {
                     <div className="w-16 h-16 rounded-2xl bg-slate-100 overflow-hidden shrink-0 border border-slate-100">
                       {pet.facePhoto || pet.photo ? (
                         <img
-                          src={
-                            (pet.facePhoto || pet.photo).startsWith('/uploads')
-                              ? `http://localhost:5000${pet.facePhoto || pet.photo}`
-                              : pet.facePhoto || pet.photo
-                          }
+                          src={getMediaUrl(pet.facePhoto || pet.photo)}
                           alt={pet.name || 'Pet'}
                           className="w-full h-full object-cover"
                         />

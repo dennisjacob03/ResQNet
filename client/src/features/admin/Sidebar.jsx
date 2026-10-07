@@ -110,9 +110,6 @@ const Sidebar = ({
                 alt="ResQNet Logo"
                 className="h-7 w-auto object-contain"
               />
-              <span className="text-[11px] font-black text-[#237737] uppercase tracking-wider">
-                Admin Console
-              </span>
             </div>
             <button
               onClick={toggleSidebar}

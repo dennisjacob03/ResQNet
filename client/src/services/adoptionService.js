@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config/api';
 
-const API_URL = 'http://localhost:5000/api/adoptions';
+const API_URL = `${API_BASE_URL}/api/adoptions`;
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('resqnet_token');

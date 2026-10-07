@@ -39,6 +39,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { getAnimalById } from '../../services/animalService';
+import { API_BASE_URL } from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
 import {
   submitAdoptionApplication,
@@ -476,8 +477,8 @@ const PetDetailsPage = () => {
   const getMediaUrl = (path) => {
     if (!path) return '';
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    if (path.startsWith('/uploads')) return `http://localhost:5000${path}`;
-    return `http://localhost:5000/uploads/${path}`;
+    if (path.startsWith('/uploads')) return `${API_BASE_URL}${path}`;
+    return `${API_BASE_URL}/uploads/${path}`;
   };
 
   if (loading) {

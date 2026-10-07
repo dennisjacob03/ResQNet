@@ -1,4 +1,6 @@
-const API_URL = 'http://localhost:5000/api/animals';
+import { API_BASE_URL } from '../config/api';
+
+const API_URL = `${API_BASE_URL}/api/animals`;
 
 // Get all animal categories
 export const getAllCategories = async () => {

@@ -1,7 +1,8 @@
 import axios from 'axios';
 import { INDIAN_STATES, getDistrictsByState } from '../data/indianStatesDistricts';
+import { API_BASE_URL } from '../config/api';
 
-const API_BASE = 'http://localhost:5000/api/locations';
+const API_BASE = `${API_BASE_URL}/api/locations`;
 
 // In-memory cache for client-side queries
 const pincodeCache = new Map();

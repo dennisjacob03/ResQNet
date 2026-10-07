@@ -1,4 +1,5 @@
 import { X, Lock } from 'lucide-react';
+import { getMediaUrl } from '../../config/api';
 
 const UserDetailsModal = ({
   isOpen,
@@ -35,11 +36,7 @@ const UserDetailsModal = ({
           <div className="flex items-center gap-3">
             {user.profilePic ? (
               <img
-                src={
-                  user.profilePic.startsWith('/uploads')
-                    ? `http://localhost:5000${user.profilePic}`
-                    : user.profilePic
-                }
+                src={getMediaUrl(user.profilePic)}
                 alt={user.fullName || user.name}
                 className="w-12 h-12 rounded-2xl object-cover border border-slate-200 shrink-0"
               />
