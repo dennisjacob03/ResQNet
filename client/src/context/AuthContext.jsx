@@ -103,10 +103,13 @@ export const AuthProvider = ({ children }) => {
       return { success: false, message: data.message || 'Google login failed' };
     } catch (err) {
       console.error('Firebase Google Auth Error:', err.response?.data || err);
-      const msg =
+      let msg =
         err.response?.data?.message ||
         err.message ||
         'Google Auth flow cancelled or failed';
+      if (err.code === 'auth/unauthorized-domain') {
+        msg = 'Domain not authorized in Firebase. Please add this domain to Authorized Domains in Firebase Authentication Settings.';
+      }
       setError(msg);
       return { success: false, message: msg };
     }
