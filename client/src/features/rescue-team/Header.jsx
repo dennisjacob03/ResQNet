@@ -1,5 +1,4 @@
-import React from 'react';
-import { Menu, Search, Bell, X } from 'lucide-react';
+import { Menu, PanelLeftClose, PanelLeftOpen, Search, Bell, X } from 'lucide-react';
 import UserProfileDropdown from '../../components/common/UserProfileDropdown';
 
 const Header = ({
@@ -19,9 +18,16 @@ const Header = ({
           onClick={toggleSidebar}
           className="p-2 -ml-1 sm:-ml-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
           title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          aria-label="Toggle Sidebar"
+          aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
         >
-          <Menu className="w-5 h-5" />
+          {/* Hamburger menu on mobile/phone */}
+          <Menu className="w-5 h-5 md:hidden" />
+          {/* Collapse/Expand sidebar icon on laptop/PC */}
+          {sidebarOpen ? (
+            <PanelLeftClose className="w-5 h-5 hidden md:block" />
+          ) : (
+            <PanelLeftOpen className="w-5 h-5 hidden md:block" />
+          )}
         </button>
         <img src="/logo.png" alt="ResQNet Logo" className="h-7 sm:h-9 w-auto object-contain" />
       </div>

@@ -73,6 +73,8 @@ const LoginPage = () => {
           navigate('/dashboard?tab=report');
         } else if (redirectParam === 'adopt') {
           navigate('/dashboard?tab=adopt');
+        } else if (redirectParam) {
+          navigate(redirectParam);
         } else {
           navigate('/dashboard');
         }

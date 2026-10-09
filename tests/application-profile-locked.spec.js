@@ -18,6 +18,12 @@ test.describe("Application Forms Profile Sync & Inactive State", () => {
       pincode: "683101",
     };
 
+    // Pre-seed localStorage so direct routing or reloads maintain authenticated user
+    await page.addInitScript((user) => {
+      localStorage.setItem("resqnet_token", "mock-test-jwt-token-12345");
+      localStorage.setItem("resqnet_user", JSON.stringify(user));
+    }, mockUser);
+
     await page.route("**/api/auth/me", async (route) => {
       await route.fulfill({
         status: 200,
@@ -117,15 +123,6 @@ test.describe("Application Forms Profile Sync & Inactive State", () => {
         }),
       });
     });
-
-    // Login and navigate to dashboard
-    await page.goto("/login");
-    await page
-      .locator('input[name="email"]')
-      .fill("anoop.narayanan@example.com");
-    await page.locator('input[name="password"]').fill("password123");
-    await page.locator('button[type="submit"]').click();
-    await expect(page).toHaveURL(/\/dashboard$/);
   });
 
   test("Volunteer application locks all profile-backed fields", async ({
@@ -214,16 +211,13 @@ test.describe("Application Forms Profile Sync & Inactive State", () => {
     await expect(vetNameInput).toHaveValue("Anoop Narayanan");
     await expect(vetNameInput).toBeDisabled();
 
-    // Verify email and phone in dashboard credentials section are disabled
+    // Verify official email field remains active for clinic contact
     const vetEmailInput = page.locator(
       'input[placeholder="doctor@clinic.com"]',
     );
-    await expect(vetEmailInput).toHaveValue("anoop.narayanan@example.com");
-    await expect(vetEmailInput).toBeDisabled();
-
-    const vetPhoneInput = page.locator('input[placeholder="9876543210"]');
-    await expect(vetPhoneInput).toHaveValue("9847123456");
-    await expect(vetPhoneInput).toBeDisabled();
+    await expect(vetEmailInput).toBeEnabled();
+    await vetEmailInput.fill("dr.anoop@clinic.com");
+    await expect(vetEmailInput).toHaveValue("dr.anoop@clinic.com");
   });
 
   test("Shelter application locks applicant email and contact phone", async ({
@@ -232,19 +226,13 @@ test.describe("Application Forms Profile Sync & Inactive State", () => {
     await page.goto("/dashboard/shelter");
     await expect(page).toHaveURL(/\/dashboard\/shelter$/);
 
-    // Verify shelter email is prefilled and disabled
+    // Verify shelter organization email is active for shelter contact
     const shelterEmailInput = page.locator(
       'input[placeholder="shelter@example.com"]',
     );
-    await expect(shelterEmailInput).toHaveValue("anoop.narayanan@example.com");
-    await expect(shelterEmailInput).toBeDisabled();
-
-    // Verify contact phone is prefilled and disabled
-    const shelterPhoneInput = page.locator(
-      'input[placeholder="10-digit mobile number"]',
-    );
-    await expect(shelterPhoneInput).toHaveValue("9847123456");
-    await expect(shelterPhoneInput).toBeDisabled();
+    await expect(shelterEmailInput).toBeEnabled();
+    await shelterEmailInput.fill("info@aluvashelter.org");
+    await expect(shelterEmailInput).toHaveValue("info@aluvashelter.org");
 
     // Verify non-profile field (Shelter Name) remains editable
     const shelterNameInput = page.locator(

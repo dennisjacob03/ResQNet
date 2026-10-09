@@ -102,6 +102,9 @@ const AdminDashboard = () => {
     handleTabChange(effectiveTab);
   };
   const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      return false;
+    }
     const saved = localStorage.getItem("resqnet_sidebar_open");
     return saved !== null ? saved === "true" : true;
   });
@@ -109,10 +112,25 @@ const AdminDashboard = () => {
   const toggleSidebar = () => {
     setSidebarOpen((prev) => {
       const next = !prev;
-      localStorage.setItem("resqnet_sidebar_open", String(next));
+      if (typeof window !== "undefined" && window.innerWidth >= 768) {
+        localStorage.setItem("resqnet_sidebar_open", String(next));
+      }
       return next;
     });
   };
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        const saved = localStorage.getItem("resqnet_sidebar_open");
+        setSidebarOpen(saved !== null ? saved === "true" : true);
+      } else {
+        setSidebarOpen(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   const [notifOpen, setNotifOpen] = useState(false);
 
   // Animals & Category Management State
